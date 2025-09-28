@@ -1,0 +1,214 @@
+# RypSystems DTE - Ejemplo de Configuración
+# Copia este archivo a config.yaml y ajusta según tu entorno
+
+# ====================================================================
+# CONFIGURACIÓN DE AMBIENTE
+# ====================================================================
+environment: "development"  # development, testing, staging, certification, production
+debug: true
+
+# ====================================================================
+# CONFIGURACIÓN DE LOGGING
+# ====================================================================
+logging:
+  level: "INFO"              # TRACE, DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "json"             # json, text
+  output: "console"          # console, file, both
+  file_path: "/var/log/rypsystems_dte/app.log"
+  max_file_size: 10485760    # 10MB
+  backup_count: 5
+  console_output: true
+
+# ====================================================================
+# CONFIGURACIÓN DEL SII
+# ====================================================================
+sii:
+  environment: "certificacion"  # certificacion, produccion
+
+  # Configuración de autenticación
+  authentication:
+    method: "certificate"    # certificate, token, hybrid
+    certificate_path: "/path/to/certificate.pem"
+    private_key_path: "/path/to/private_key.pem"
+    certificate_password: "your_certificate_password"
+    rut_contribuyente: "12345678-9"
+    rut_empresa: "12345678-9"
+    resolucion_numero: 123
+    resolucion_fecha: "2023-01-01"
+    token_lifetime: 21600    # 6 horas
+    auto_refresh_token: true
+
+  # Configuración de comunicación
+  connection_timeout: 30
+  read_timeout: 60
+  max_retries: 3
+  retry_delay: 1.0
+  verify_ssl: true
+
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    requests_per_minute: 60
+    requests_per_hour: 1000
+    burst_limit: 10
+    backoff_factor: 1.5
+    max_backoff: 60
+
+  # Configuración de cache
+  cache_enabled: true
+  cache_ttl: 3600
+  cache_max_size: 1000
+
+  # Logging específico SII
+  log_requests: true
+  log_responses: true
+  log_sensitive_data: false  # ¡NUNCA true en producción!
+
+# ====================================================================
+# CONFIGURACIÓN DE BASE DE DATOS (OPCIONAL)
+# ====================================================================
+database:
+  host: "localhost"
+  port: 5432
+  database: "rypsystems_dte"
+  username: "dte_user"
+  password: "dte_password"
+  ssl_mode: "prefer"
+  pool_size: 10
+  pool_timeout: 30
+
+# ====================================================================
+# CONFIGURACIÓN DE CACHE
+# ====================================================================
+cache:
+  enabled: true
+  backend: "memory"          # memory, redis
+  ttl: 3600                  # TTL por defecto en segundos
+  max_size: 1000
+  redis_url: "redis://localhost:6379/0"  # Si usas Redis
+
+# ====================================================================
+# CONFIGURACIÓN DE SEGURIDAD
+# ====================================================================
+security:
+  validate_certificates: true
+  certificate_path: "/path/to/certificates/"
+  private_key_path: "/path/to/private_keys/"
+  ca_bundle_path: "/path/to/ca_bundle.pem"
+  encryption_key: "your_encryption_key_here"
+  token_expiry: 3600
+
+# ====================================================================
+# CONFIGURACIÓN DE PERFORMANCE
+# ====================================================================
+performance:
+  max_concurrent_requests: 10
+  request_timeout: 30
+  retry_attempts: 3
+  retry_delay: 1.0
+  enable_gzip: true
+  connection_pool_size: 20
+
+# ====================================================================
+# CERTIFICADOS DIGITALES
+# ====================================================================
+certificates:
+  store_path: "/path/to/certificates/"
+  global_validation: true
+  strict_mode: false
+
+  # Certificados registrados
+  certificates:
+    firma_electronica:
+      name: "Certificado de Firma Electrónica"
+      certificate_type: "signing"
+      certificate_path: "/path/to/firma.pem"
+      private_key_path: "/path/to/firma_key.pem"
+      password: "cert_password"
+      rut_titular: "12345678-9"
+      empresa: "Mi Empresa SPA"
+      validate_chain: true
+      check_revocation: true
+      auto_load: true
+
+    autenticacion_sii:
+      name: "Certificado de Autenticación SII"
+      certificate_type: "authentication"
+      certificate_path: "/path/to/auth_sii.pem"
+      private_key_path: "/path/to/auth_sii_key.pem"
+      password: "auth_password"
+      rut_titular: "12345678-9"
+      auto_load: true
+
+# ====================================================================
+# FEATURE FLAGS
+# ====================================================================
+features:
+  # Características de validación
+  strict_validation:
+    status: "enabled"
+    description: "Validación estricta de documentos"
+    default_value: true
+
+  enhanced_logging:
+    status: "disabled"
+    description: "Logging mejorado con contexto extendido"
+    default_value: false
+
+  performance_monitoring:
+    status: "enabled"
+    description: "Monitoreo de performance en tiempo real"
+    default_value: true
+
+  cache_optimization:
+    status: "enabled"
+    description: "Optimizaciones de cache avanzadas"
+    default_value: true
+
+  retry_improvements:
+    status: "enabled"
+    description: "Mejoras en lógica de reintentos"
+    default_value: true
+
+  beta_features:
+    status: "disabled"
+    description: "Características en beta"
+    default_value: false
+
+  # Feature con rollout gradual
+  new_validation_engine:
+    status: "rollout"
+    description: "Nuevo motor de validación"
+    default_value: false
+    rollout_rules:
+      - strategy: "percentage"
+        enabled: true
+        percentage: 25.0  # 25% de usuarios
+
+# ====================================================================
+# CONFIGURACIÓN ADICIONAL
+# ====================================================================
+# Cualquier configuración adicional específica de tu aplicación
+app:
+  name: "RypSystems DTE"
+  version: "1.0.0"
+  timezone: "America/Santiago"
+  locale: "es_CL"
+
+# Headers HTTP adicionales
+http:
+  user_agent: "RypSystems-DTE/1.0"
+  additional_headers:
+    X-Application: "RypSystems-DTE"
+    X-Version: "1.0.0"
+
+# ====================================================================
+# CONFIGURACIÓN POR AMBIENTE
+# ====================================================================
+# Las siguientes configuraciones se pueden sobrescribir usando variables de entorno:
+# RYPSYSTEMS_DTE_ENVIRONMENT=production
+# RYPSYSTEMS_DTE_DEBUG=false
+# RYPSYSTEMS_DTE_SII_ENVIRONMENT=produccion
+# RYPSYSTEMS_DTE_LOG_LEVEL=WARNING
+# RYPSYSTEMS_DTE_DATABASE_HOST=prod-db.example.com
+# RYPSYSTEMS_DTE_FEATURE_BETA_FEATURES=false
