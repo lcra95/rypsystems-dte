@@ -9,7 +9,7 @@ Traducción de las clases PHP principales:
 
 from enum import IntEnum
 from typing import Optional, Union, Dict, Any
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ConfigDict
 
 from .utils import RutValidator
 
@@ -326,10 +326,7 @@ class Contribuyente(BaseModel):
         """
         return self.comuna
 
-    class Config:
-        """Configuración de Pydantic."""
-
-        # Permitir validación al asignar valores
-        validate_assignment = True
-        # Usar enum values en lugar de nombres
-        use_enum_values = True
+    model_config = ConfigDict(
+        validate_assignment=True,
+        use_enum_values=True
+    )

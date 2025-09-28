@@ -7,7 +7,7 @@ Representa un sobre que contiene uno o más documentos para intercambio.
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from ..enums import DocumentType, ProcessType
 from .document import ExchangeDocument
 
@@ -106,7 +106,8 @@ class Envelope(BaseModel):
         description="Metadatos adicionales del sobre"
     )
 
-    @validator('status')
+    @field_validator('status')
+    @classmethod
     def validate_status(cls, v):
         """Valida el estado del sobre."""
         valid_statuses = ['draft', 'sealed', 'sent', 'received', 'processed', 'error']
@@ -114,7 +115,8 @@ class Envelope(BaseModel):
             raise ValueError(f"status debe ser uno de: {', '.join(valid_statuses)}")
         return v.lower()
 
-    @validator('sender_rut', 'receiver_rut')
+    @field_validator('sender_rut', 'receiver_rut')
+    @classmethod
     def validate_rut(cls, v):
         """Valida el formato del RUT."""
         from ...sii.utils import RutValidator
@@ -122,21 +124,19 @@ class Envelope(BaseModel):
             raise ValueError(f"RUT inválido: {v}")
         return RutValidator.format(v)
 
-    @validator('documents')
-    def validate_documents_consistency(cls, v, values):
+    @model_validator(mode='after')
+    def validate_documents_consistency(self):
         """Valida que todos los documentos sean del mismo tipo."""
-        if not v:
-            return v
+        if not self.documents:
+            return self
 
-        document_type = values.get('document_type')
-        if document_type:
-            for doc in v:
-                if doc.document_type != document_type:
-                    raise ValueError(
-                        f"Todos los documentos deben ser del tipo {document_type.name}"
-                    )
+        for doc in self.documents:
+            if doc.document_type != self.document_type:
+                raise ValueError(
+                    f"Todos los documentos deben ser del tipo {self.document_type.name}"
+                )
 
-        return v
+        return self
 
     def get_id(self) -> str:
         """
@@ -423,7 +423,7 @@ class Envelope(BaseModel):
             'metadata': self.metadata
         }
 
-    class Config:
-        """Configuración de Pydantic."""
-        arbitrary_types_allowed = True
-        validate_assignment = True
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        validate_assignment=True
+    )

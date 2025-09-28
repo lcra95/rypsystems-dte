@@ -7,7 +7,7 @@ Representa el endpoint de un participante en el intercambio de documentos.
 
 from typing import Optional, Dict, Any, Union
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from ...sii.base import Contribuyente
 
 
@@ -106,7 +106,8 @@ class PartyEndpoint(BaseModel):
         description="Parámetros adicionales del endpoint"
     )
 
-    @validator('endpoint_url')
+    @field_validator('endpoint_url')
+    @classmethod
     def validate_url(cls, v):
         """Valida que la URL sea válida."""
         import re
@@ -115,7 +116,8 @@ class PartyEndpoint(BaseModel):
             raise ValueError("endpoint_url debe ser una URL válida (http:// o https://)")
         return v
 
-    @validator('endpoint_type')
+    @field_validator('endpoint_type')
+    @classmethod
     def validate_endpoint_type(cls, v):
         """Valida el tipo de endpoint."""
         valid_types = ['rest', 'soap', 'graphql', 'websocket']
@@ -123,7 +125,8 @@ class PartyEndpoint(BaseModel):
             raise ValueError(f"endpoint_type debe ser uno de: {', '.join(valid_types)}")
         return v.lower()
 
-    @validator('authentication_type')
+    @field_validator('authentication_type')
+    @classmethod
     def validate_auth_type(cls, v):
         """Valida el tipo de autenticación."""
         valid_types = ['none', 'basic', 'bearer', 'api_key', 'certificate']
@@ -278,7 +281,7 @@ class PartyEndpoint(BaseModel):
             'extra_params': self.extra_params
         }
 
-    class Config:
-        """Configuración de Pydantic."""
-        arbitrary_types_allowed = True
-        validate_assignment = True
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        validate_assignment=True
+    )

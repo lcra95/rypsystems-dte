@@ -7,7 +7,7 @@ Representa un documento que puede ser intercambiado entre contribuyentes.
 
 from typing import Optional, Dict, Any, Union
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from ..enums import DocumentType
 from ...dte.document import BaseDocument
 
@@ -105,7 +105,8 @@ class ExchangeDocument(BaseModel):
         description="Firma digital del documento"
     )
 
-    @validator('status')
+    @field_validator('status')
+    @classmethod
     def validate_status(cls, v):
         """Valida el estado del documento."""
         valid_statuses = ['draft', 'pending', 'sent', 'received', 'accepted', 'rejected', 'error']
@@ -113,7 +114,8 @@ class ExchangeDocument(BaseModel):
             raise ValueError(f"status debe ser uno de: {', '.join(valid_statuses)}")
         return v.lower()
 
-    @validator('sender_rut', 'receiver_rut')
+    @field_validator('sender_rut', 'receiver_rut')
+    @classmethod
     def validate_rut(cls, v):
         """Valida el formato del RUT."""
         from ...sii.utils import RutValidator
@@ -336,7 +338,7 @@ class ExchangeDocument(BaseModel):
             'metadata': self.metadata
         }
 
-    class Config:
-        """Configuración de Pydantic."""
-        arbitrary_types_allowed = True
-        validate_assignment = True
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        validate_assignment=True
+    )

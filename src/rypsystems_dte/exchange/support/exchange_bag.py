@@ -7,7 +7,7 @@ Representa una bolsa que contiene múltiples sobres para intercambio masivo.
 
 from typing import List, Optional, Dict, Any, Set
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from ..enums import DocumentType, ProcessType
 from .envelope import Envelope
 
@@ -103,7 +103,8 @@ class ExchangeBag(BaseModel):
         description="Metadatos adicionales de la bolsa"
     )
 
-    @validator('status')
+    @field_validator('status')
+    @classmethod
     def validate_status(cls, v):
         """Valida el estado de la bolsa."""
         valid_statuses = ['draft', 'sealed', 'sent', 'received', 'processed', 'error']
@@ -111,7 +112,8 @@ class ExchangeBag(BaseModel):
             raise ValueError(f"status debe ser uno de: {', '.join(valid_statuses)}")
         return v.lower()
 
-    @validator('sender_rut', 'receiver_rut')
+    @field_validator('sender_rut', 'receiver_rut')
+    @classmethod
     def validate_rut(cls, v):
         """Valida el formato del RUT."""
         from ...sii.utils import RutValidator
@@ -119,27 +121,23 @@ class ExchangeBag(BaseModel):
             raise ValueError(f"RUT inválido: {v}")
         return RutValidator.format(v)
 
-    @validator('envelopes')
-    def validate_envelopes_consistency(cls, v, values):
+    @model_validator(mode='after')
+    def validate_envelopes_consistency(self):
         """Valida que todos los sobres tengan el mismo emisor y receptor."""
-        if not v:
-            return v
+        if not self.envelopes:
+            return self
 
-        sender_rut = values.get('sender_rut')
-        receiver_rut = values.get('receiver_rut')
+        for envelope in self.envelopes:
+            if envelope.sender_rut != self.sender_rut:
+                raise ValueError(
+                    f"Todos los sobres deben tener el mismo emisor: {self.sender_rut}"
+                )
+            if envelope.receiver_rut != self.receiver_rut:
+                raise ValueError(
+                    f"Todos los sobres deben tener el mismo receptor: {self.receiver_rut}"
+                )
 
-        if sender_rut and receiver_rut:
-            for envelope in v:
-                if envelope.sender_rut != sender_rut:
-                    raise ValueError(
-                        f"Todos los sobres deben tener el mismo emisor: {sender_rut}"
-                    )
-                if envelope.receiver_rut != receiver_rut:
-                    raise ValueError(
-                        f"Todos los sobres deben tener el mismo receptor: {receiver_rut}"
-                    )
-
-        return v
+        return self
 
     def get_id(self) -> str:
         """
@@ -499,7 +497,7 @@ class ExchangeBag(BaseModel):
             'metadata': self.metadata
         }
 
-    class Config:
-        """Configuración de Pydantic."""
-        arbitrary_types_allowed = True
-        validate_assignment = True
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        validate_assignment=True
+    )

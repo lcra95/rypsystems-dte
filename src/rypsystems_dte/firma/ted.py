@@ -14,7 +14,7 @@ from xml.dom import minidom
 import hashlib
 import base64
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from ..sii.base import Contribuyente
 from ..sii.utils import RutValidator
@@ -39,21 +39,24 @@ class TEDData(BaseModel):
     caf_data: str = Field("", description="Datos del CAF (Code Authorization File)")
     timestamp_ted: str = Field("", description="Timestamp del TED")
 
-    @validator('rut_emisor', 'rut_receptor')
+    @field_validator('rut_emisor', 'rut_receptor')
+    @classmethod
     def validate_rut(cls, v):
         """Valida formato de RUT"""
         if not RutValidator.validate(v):
             raise ValueError(f"RUT inválido: {v}")
         return RutValidator.format(v)
 
-    @validator('razon_social_receptor', 'primer_item')
+    @field_validator('razon_social_receptor', 'primer_item')
+    @classmethod
     def truncate_text_fields(cls, v):
         """Trunca campos de texto a 40 caracteres como en PHP"""
         if isinstance(v, str):
             return v[:40]
         return v
 
-    @validator('fecha_emision')
+    @field_validator('fecha_emision')
+    @classmethod
     def validate_fecha(cls, v):
         """Valida formato de fecha"""
         try:
@@ -61,6 +64,11 @@ class TEDData(BaseModel):
             return v
         except ValueError:
             raise ValueError(f"Formato de fecha inválido: {v}. Use YYYY-MM-DD")
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        validate_assignment=True
+    )
 
 
 class TEDBuilder:

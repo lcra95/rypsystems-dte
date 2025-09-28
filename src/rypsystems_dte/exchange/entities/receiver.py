@@ -6,7 +6,7 @@ Representa al receptor en un intercambio de documentos tributarios electrónicos
 """
 
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from ..enums import DocumentType, ProcessType
 from ...sii.base import Contribuyente
 
@@ -56,28 +56,24 @@ class Receiver(BaseModel):
         description="Parámetros adicionales del intercambio"
     )
 
-    @validator('document_type', 'process_type')
-    def validate_types(cls, v, values, field):
-        """Valida que los tipos sean instancias correctas de los enums."""
-        if field.name == 'document_type' and not isinstance(v, DocumentType):
+    @field_validator('document_type')
+    @classmethod
+    def validate_document_type(cls, v):
+        """Valida que el tipo de documento sea una instancia correcta del enum."""
+        if not isinstance(v, DocumentType):
             raise ValueError("document_type debe ser una instancia de DocumentType")
-        if field.name == 'process_type' and not isinstance(v, ProcessType):
+        return v
+
+    @field_validator('process_type')
+    @classmethod
+    def validate_process_type(cls, v):
+        """Valida que el tipo de proceso sea una instancia correcta del enum."""
+        if not isinstance(v, ProcessType):
             raise ValueError("process_type debe ser una instancia de ProcessType")
         return v
 
-    @validator('process_type')
-    def validate_document_process_compatibility(cls, v, values):
-        """Valida que el tipo de documento sea válido para el proceso."""
-        if 'document_type' in values:
-            document_type = values['document_type']
-            if not document_type.is_valid_for_process(v):
-                raise ValueError(
-                    f"El tipo de documento {document_type.name} no es válido "
-                    f"para el proceso {v.name}"
-                )
-        return v
-
-    @validator('notification_email')
+    @field_validator('notification_email')
+    @classmethod
     def validate_email(cls, v):
         """Valida el formato del email de notificación."""
         if v is not None:
@@ -86,6 +82,16 @@ class Receiver(BaseModel):
             if not re.match(email_pattern, v):
                 raise ValueError("notification_email debe tener un formato válido")
         return v
+
+    @model_validator(mode='after')
+    def validate_document_process_compatibility(self):
+        """Valida que el tipo de documento sea válido para el proceso."""
+        if not self.document_type.is_valid_for_process(self.process_type):
+            raise ValueError(
+                f"El tipo de documento {self.document_type.name} no es válido "
+                f"para el proceso {self.process_type.name}"
+            )
+        return self
 
     def get_id(self) -> str:
         """
@@ -192,7 +198,7 @@ class Receiver(BaseModel):
             'extra_params': self.extra_params
         }
 
-    class Config:
-        """Configuración de Pydantic."""
-        arbitrary_types_allowed = True
-        validate_assignment = True
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        validate_assignment=True
+    )
