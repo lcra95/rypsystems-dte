@@ -289,6 +289,15 @@ class DocumentBuilder:
     @staticmethod
     def _build_generic_element(parent: ET.Element, tag: str, data: Any) -> ET.Element:
         """Construye un elemento XML genérico desde datos."""
+        if isinstance(data, list):
+            # Si es lista en el nivel raíz, crear múltiples elementos
+            # No crear elemento vacío inicial
+            last_elem = None
+            for item in data:
+                last_elem = DocumentBuilder._build_generic_element(parent, tag, item)
+            return last_elem or ET.SubElement(parent, tag)  # Fallback para lista vacía
+
+        # Crear elemento para datos no-lista
         elem = ET.SubElement(parent, tag)
 
         if isinstance(data, dict):
@@ -309,12 +318,6 @@ class DocumentBuilder:
                             DocumentBuilder._build_generic_element(elem, key, item)
                     else:
                         DocumentBuilder._build_generic_element(elem, key, value)
-
-        elif isinstance(data, list):
-            # Si es lista en el nivel raíz, crear múltiples elementos
-            for item in data:
-                DocumentBuilder._build_generic_element(parent, tag, item)
-            return elem
 
         else:
             # Valor simple

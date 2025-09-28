@@ -1,10 +1,12 @@
 """
-Módulo Firma - Firmas digitales y certificados
+RypSystems DTE - Módulo de Firma Digital
+Manejo de firmas digitales y TED (Timbre Electrónico DTE)
 
-Utilidades para:
-- Firmas digitales de documentos XML
-- Manejo de certificados digitales
-- Validación de firmas
+Componentes:
+- TED: Generación y validación de Timbre Electrónico
+- Digital Signature: Firmas digitales para documentos XML
 """
 
-__all__ = []
+from .ted import TEDBuilder, TEDValidator
+
+__all__ = ['TEDBuilder', 'TEDValidator']
