@@ -444,6 +444,100 @@ class BaseDocument(ABC):
         """
         return self.xml_document.query(xpath, params or {})
 
+    # Métodos de integración SII
+    def submit_to_sii(
+        self,
+        sii_client,
+        rut_sender: Optional[str] = None,
+        validate_only: bool = False
+    ):
+        """
+        Envía el documento al SII usando el cliente de integración.
+
+        Args:
+            sii_client: Cliente SII configurado
+            rut_sender: RUT del emisor (opcional, usa el del documento)
+            validate_only: Solo validar, no procesar
+
+        Returns:
+            Respuesta del SII con resultado del envío
+
+        Raises:
+            IntegrationException: Si hay error en el envío
+        """
+        from ..integration.sii_client import SiiClient
+        from ..integration.exceptions import IntegrationException
+
+        if not isinstance(sii_client, SiiClient):
+            raise ValueError("sii_client debe ser una instancia de SiiClient")
+
+        try:
+            return sii_client.submit_document(
+                document=self,
+                rut_sender=rut_sender,
+                validate_only=validate_only
+            )
+        except Exception as e:
+            raise IntegrationException(f"Error enviando documento {self.get_id()}: {e}")
+
+    def query_sii_status(self, sii_client, track_id: Optional[str] = None):
+        """
+        Consulta el estado del documento en el SII.
+
+        Args:
+            sii_client: Cliente SII configurado
+            track_id: ID de seguimiento SII (opcional)
+
+        Returns:
+            Respuesta del SII con estado del documento
+
+        Raises:
+            IntegrationException: Si hay error en la consulta
+        """
+        from ..integration.sii_client import SiiClient
+        from ..integration.exceptions import IntegrationException
+
+        if not isinstance(sii_client, SiiClient):
+            raise ValueError("sii_client debe ser una instancia de SiiClient")
+
+        try:
+            if track_id:
+                return sii_client.query_document_status(track_ids=[track_id])
+            else:
+                return sii_client.query_document_status(
+                    document_ids=[self.get_id()],
+                    folios=[self.get_folio()],
+                    document_types=[self.get_codigo()]
+                )
+        except Exception as e:
+            raise IntegrationException(f"Error consultando estado de documento {self.get_id()}: {e}")
+
+    def get_sii_receipt(self, sii_client, track_id: str, receipt_type: str = 'xml') -> Optional[str]:
+        """
+        Obtiene el acuse de recibo del SII.
+
+        Args:
+            sii_client: Cliente SII configurado
+            track_id: ID de seguimiento SII
+            receipt_type: Tipo de acuse (xml, pdf)
+
+        Returns:
+            Contenido del acuse o None si no está disponible
+
+        Raises:
+            IntegrationException: Si hay error obteniendo el acuse
+        """
+        from ..integration.sii_client import SiiClient
+        from ..integration.exceptions import IntegrationException
+
+        if not isinstance(sii_client, SiiClient):
+            raise ValueError("sii_client debe ser una instancia de SiiClient")
+
+        try:
+            return sii_client.get_document_receipt(track_id, receipt_type)
+        except Exception as e:
+            raise IntegrationException(f"Error obteniendo acuse para documento {self.get_id()}: {e}")
+
 
 # Clases específicas de documentos DTE
 class FacturaAfecta(BaseDocument):
