@@ -1,0 +1,150 @@
+{
+  "start_time": "2025-09-28T16:28:57.790442+00:00",
+  "certificate_validation": {
+    "basic_validation": {
+      "status": "valid",
+      "subject": "CN=12345678-9 (Mock Company), O=Test Co, C=CL",
+      "issuer": "CN=SII CA Test, O=Servicio de Impuestos Internos, C=CL",
+      "certificate_type": "sii_company",
+      "rut_certificate": "12345678-9",
+      "key_size": 2048,
+      "expires_in_days": -271
+    },
+    "sii_validation": {
+      "is_valid_for_dte_signing": true,
+      "has_rut": true,
+      "has_digital_signature": true,
+      "is_sii_issued": true
+    },
+    "chain_validation": null,
+    "validation_levels": {
+      "basic": {
+        "level": "basic",
+        "checks_performed": [
+          "format",
+          "validity_period",
+          "basic_constraints"
+        ],
+        "status": "valid"
+      },
+      "chain": {
+        "level": "chain",
+        "checks_performed": [
+          "format",
+          "validity_period",
+          "chain_validation"
+        ],
+        "status": "valid"
+      },
+      "revocation": {
+        "level": "revocation",
+        "checks_performed": [
+          "format",
+          "validity_period",
+          "chain_validation",
+          "revocation_check"
+        ],
+        "status": "valid"
+      },
+      "full": {
+        "level": "full",
+        "checks_performed": [
+          "format",
+          "validity_period",
+          "chain_validation",
+          "revocation_check",
+          "policy_validation"
+        ],
+        "status": "valid"
+      }
+    }
+  },
+  "signature_validation": {
+    "xml_signature_validation": {
+      "signature_count": 1,
+      "valid_signatures": 1,
+      "signature_method": "http://www.w3.org/2000/09/xmldsig#rsa-sha256",
+      "canonicalization_method": "http://www.w3.org/TR/2001/REC-xml-c14n-20010315",
+      "status": "valid",
+      "warnings": [
+        "Demo mode - signature not cryptographically verified"
+      ]
+    },
+    "dte_signature_validation": {
+      "is_dte_compliant": true,
+      "algorithm_allowed": true,
+      "certificate_valid_for_dte": true,
+      "key_size_sufficient": true
+    },
+    "ted_signature_validation": {
+      "status": "invalid",
+      "signature_algorithm": "SHA1withRSA",
+      "has_signature_value": true,
+      "errors": [
+        "TED signature value too short"
+      ],
+      "warnings": []
+    }
+  },
+  "timestamp_validation": {
+    "timestamp_token_validation": {
+      "status": "valid",
+      "timestamp_authority": "Unknown TSA",
+      "hash_algorithm": "SHA-256",
+      "timestamp_value": "2025-09-28T16:28:57.792422+00:00",
+      "warnings": [
+        "Simplified timestamp validation - full ASN.1 parsing needed"
+      ]
+    },
+    "signature_timestamp_validation": {
+      "signature_valid": true,
+      "message_imprint_verified": true,
+      "hash_algorithm": "SHA-256"
+    },
+    "dte_timestamp_validation": {
+      "status": "valid",
+      "is_sii_approved_tsa": false,
+      "hash_algorithm_strength": true,
+      "warnings": [
+        "Simplified timestamp validation - full ASN.1 parsing needed",
+        "No TSA certificate provided",
+        "Timestamp authority not explicitly approved by SII"
+      ]
+    },
+    "long_term_validation": {
+      "valid_for_long_term": true,
+      "hash_algorithm_future_proof": true,
+      "tsa_certificate_valid": true
+    }
+  },
+  "complete_workflow": {
+    "document_creation": {
+      "document_type": 33,
+      "folio": 1001,
+      "emisor_rut": "76354771-K",
+      "monto_total": "11900"
+    },
+    "signature_application": {
+      "xml_length": 753,
+      "signature_applied": true,
+      "signature_algorithm": "RSA-SHA256",
+      "certificate_rut": "76354771-K"
+    },
+    "timestamp_application": {
+      "timestamp_applied": true,
+      "tsa_authority": "AC Tiempo SII",
+      "timestamp_value": "2025-09-28T16:28:57.794829+00:00",
+      "hash_algorithm": "SHA-256"
+    },
+    "complete_validation": {
+      "certificate_valid": true,
+      "signature_valid": true,
+      "timestamp_valid": true,
+      "sii_compliant": true,
+      "long_term_valid": true,
+      "overall_status": "VALID"
+    }
+  },
+  "errors": [],
+  "end_time": "2025-09-28T16:28:57.794842+00:00"
+}
