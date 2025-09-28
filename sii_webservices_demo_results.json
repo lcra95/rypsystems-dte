@@ -1,0 +1,57 @@
+{
+  "environment": "certificacion",
+  "start_time": "2025-09-28T13:16:47.965896",
+  "authentication": true,
+  "documents_created": 2,
+  "send_results": [
+    {
+      "document_id": "76354771-K_T033F000001001",
+      "tipo_documento": 33,
+      "folio": 1001,
+      "success": true,
+      "protocol_used": "rest",
+      "track_id": "TRK_1001",
+      "message": "Enviado exitosamente (simulado)",
+      "timestamp": "2025-09-28T13:16:47.966651"
+    },
+    {
+      "document_id": "76354771-K_T061F000003001",
+      "tipo_documento": 61,
+      "folio": 3001,
+      "success": true,
+      "protocol_used": "rest",
+      "track_id": "TRK_3001",
+      "message": "Enviado exitosamente (simulado)",
+      "timestamp": "2025-09-28T13:16:47.966669"
+    }
+  ],
+  "status_results": [
+    {
+      "rut_sender": "76354771-K",
+      "tipo_documento": 33,
+      "folio": 1001,
+      "status": "accepted",
+      "message": "Documento aceptado (simulado)",
+      "protocol_used": "rest",
+      "last_checked": "2025-09-28T13:16:47.966678"
+    },
+    {
+      "rut_sender": "76354771-K",
+      "tipo_documento": 61,
+      "folio": 3001,
+      "status": "accepted",
+      "message": "Documento aceptado (simulado)",
+      "protocol_used": "rest",
+      "last_checked": "2025-09-28T13:16:47.966685"
+    }
+  ],
+  "bulk_operations": {
+    "simulated": true,
+    "total_documents": 2,
+    "bulk_send_success_rate": 100,
+    "bulk_status_check_success_rate": 100,
+    "average_processing_time": 2.5
+  },
+  "errors": [],
+  "end_time": "2025-09-28T13:16:47.966690"
+}
