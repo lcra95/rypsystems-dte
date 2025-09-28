@@ -1,0 +1,6 @@
+cryptography>=41.0.0    # Firmas digitales
+lxml>=4.9.0            # XML manipulation
+requests>=2.31.0       # HTTP clients
+pydantic>=2.0.0        # Data validation
+python-barcode>=0.15.0 # PDF417 codes
+pytest>=7.0.0          # Testing
