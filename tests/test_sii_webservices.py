@@ -97,94 +97,132 @@ class TestSoapService:
         """Fixture para servicio SOAP."""
         return SoapService(SiiEnvironment.CERTIFICACION, timeout=30)
 
+    # Respuestas con el formato real del SII (capturado desde maullin.sii.cl):
+    # el resultado viene como un XML SII:RESPUESTA escapado dentro de {función}Return.
+    @staticmethod
+    def _sii_response(function: str, service: str, respuesta: str) -> Mock:
+        from xml.sax.saxutils import escape
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" '
+            'xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
+            '<soapenv:Body>'
+            f'<ns1:{function}Response xmlns:ns1="https://maullin.sii.cl/DTEWS/{service}.jws">'
+            f'<ns1:{function}Return xsi:type="xsd:string">{escape(respuesta)}</ns1:{function}Return>'
+            f'</ns1:{function}Response>'
+            '</soapenv:Body></soapenv:Envelope>'
+        )
+        return mock_response
+
+    @staticmethod
+    def _respuesta(body: str, estado: str = '00', glosa: str = '') -> str:
+        glosa_xml = f'<GLOSA>{glosa}</GLOSA>' if glosa else ''
+        return (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<SII:RESPUESTA xmlns:SII="http://www.sii.cl/XMLSchema">'
+            f'<SII:RESP_BODY>{body}</SII:RESP_BODY>'
+            f'<SII:RESP_HDR><ESTADO>{estado}</ESTADO>{glosa_xml}</SII:RESP_HDR>'
+            '</SII:RESPUESTA>'
+        )
+
     @patch('requests.Session.post')
     def test_get_seed_success(self, mock_post, soap_service):
         """Prueba obtención exitosa de semilla."""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.text = '''<?xml version="1.0" encoding="UTF-8"?>
-        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
-            <soapenv:Body>
-                <getSeedReturn xmlns="https://palena.sii.cl/DTEWS/CrSeed.jws">123456789</getSeedReturn>
-            </soapenv:Body>
-        </soapenv:Envelope>'''
-        mock_post.return_value = mock_response
+        mock_post.return_value = self._sii_response(
+            'getSeed', 'CrSeed', self._respuesta('<SEMILLA>012345678901</SEMILLA>')
+        )
 
         seed = soap_service.get_seed()
 
-        assert seed == '123456789'
+        # Igual que LibreDTE PHP, la semilla se trata como entero.
+        assert seed == '12345678901'
         mock_post.assert_called_once()
+        assert mock_post.call_args.args[0] == 'https://maullin.sii.cl/DTEWS/CrSeed.jws'
 
     @patch('requests.Session.post')
     def test_get_seed_invalid(self, mock_post, soap_service):
         """Prueba manejo de semilla inválida."""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.text = '''<?xml version="1.0" encoding="UTF-8"?>
-        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
-            <soapenv:Body>
-                <getSeedReturn xmlns="https://palena.sii.cl/DTEWS/CrSeed.jws">0</getSeedReturn>
-            </soapenv:Body>
-        </soapenv:Envelope>'''
-        mock_post.return_value = mock_response
+        mock_post.return_value = self._sii_response(
+            'getSeed', 'CrSeed', self._respuesta('<SEMILLA>0</SEMILLA>', estado='-1')
+        )
 
         with pytest.raises(SiiCommunicationError, match="Semilla inválida"):
             soap_service.get_seed()
 
     def test_sign_seed_success(self, soap_service):
-        """Prueba firma exitosa de semilla."""
-        # Certificado y clave de prueba (auto-firmados)
-        test_cert = """-----BEGIN CERTIFICATE-----
-MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAuE7w+FAKE_CERT_DATA
------END CERTIFICATE-----"""
+        """La solicitud getToken se firma con XML-DSig sobre el documento completo."""
+        from rypsystems_dte.firma import SelfSignedCertificate, XmlSigner
 
-        test_key = """-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC4FAKE_KEY_DATA
------END PRIVATE KEY-----"""
+        certificate = SelfSignedCertificate().create()
+        signed_seed = soap_service.sign_seed('123456789', certificate)
 
-        with patch('cryptography.hazmat.primitives.serialization.load_pem_private_key') as mock_load_key:
-            mock_private_key = Mock()
-            mock_signature = b'fake_signature_bytes'
-            mock_private_key.sign.return_value = mock_signature
-            mock_load_key.return_value = mock_private_key
+        assert signed_seed.startswith('<?xml version="1.0" encoding="ISO-8859-1"?>')
+        assert '<getToken>' in signed_seed and '<Semilla>123456789</Semilla>' in signed_seed
+        assert '<Reference URI="">' in signed_seed
+        assert XmlSigner().is_valid_xml(signed_seed.encode('iso-8859-1'))
 
-            signed_seed = soap_service.sign_seed('123456789', test_cert, test_key)
+    def test_sign_seed_pem(self, soap_service):
+        """Compatibilidad: certificado y clave en PEM."""
+        from rypsystems_dte.firma import SelfSignedCertificate
 
-            assert signed_seed is not None
-            assert isinstance(signed_seed, str)
+        certificate = SelfSignedCertificate().create()
+        signed_seed = soap_service.sign_seed(
+            '123456789', certificate.get_certificate_pem(), certificate.get_private_key_pem()
+        )
+        assert '<Semilla>123456789</Semilla>' in signed_seed
+
+    def test_sign_seed_certificado_falso(self, soap_service):
+        """Un certificado inválido ya no produce una "firma" (antes se aceptaba)."""
+        with pytest.raises(SiiAuthenticationError):
+            soap_service.sign_seed('123456789', 'no es un certificado', 'ni una clave')
 
     @patch('requests.Session.post')
     def test_get_token_success(self, mock_post, soap_service):
         """Prueba obtención exitosa de token."""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.text = '''<?xml version="1.0" encoding="UTF-8"?>
-        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
-            <soapenv:Body>
-                <getTokenReturn xmlns="https://palena.sii.cl/DTEWS/GetTokenFromSeed.jws">ABC123TOKEN</getTokenReturn>
-            </soapenv:Body>
-        </soapenv:Envelope>'''
-        mock_post.return_value = mock_response
+        mock_post.return_value = self._sii_response(
+            'getToken', 'GetTokenFromSeed', self._respuesta('<TOKEN>ABC123TOKEN</TOKEN>')
+        )
 
-        token = soap_service.get_token('signed_seed')
+        token = soap_service.get_token('<getToken>...</getToken>')
 
         assert token == 'ABC123TOKEN'
         assert soap_service.auth_token == 'ABC123TOKEN'
+        assert soap_service.is_authenticated()
+        # pszXml se envía escapado dentro del sobre SOAP.
+        sent = mock_post.call_args.kwargs['data'].decode('utf-8')
+        assert '<pszXml>&lt;getToken&gt;...&lt;/getToken&gt;</pszXml>' in sent
+
+    @patch('requests.Session.post')
+    def test_get_token_rechazado(self, mock_post, soap_service):
+        """El SII rechaza la firma de la semilla."""
+        mock_post.return_value = self._sii_response(
+            'getToken', 'GetTokenFromSeed',
+            self._respuesta('', estado='-07', glosa='Error : (Firma no valida)'),
+        )
+
+        with pytest.raises(SiiAuthenticationError, match='Firma no valida'):
+            soap_service.get_token('<getToken/>')
+        assert not soap_service.is_authenticated()
 
     @patch.object(SoapService, 'get_seed')
     @patch.object(SoapService, 'sign_seed')
     @patch.object(SoapService, 'get_token')
     def test_authenticate_success(self, mock_get_token, mock_sign_seed, mock_get_seed, soap_service):
         """Prueba autenticación completa exitosa."""
+        from rypsystems_dte.firma import SelfSignedCertificate
+
+        certificate = SelfSignedCertificate().create()
         mock_get_seed.return_value = '123456789'
         mock_sign_seed.return_value = 'signed_seed'
         mock_get_token.return_value = 'ABC123TOKEN'
 
-        token = soap_service.authenticate('76354771-K', 'cert_content', 'key_content')
+        token = soap_service.authenticate(certificate)
 
         assert token == 'ABC123TOKEN'
         mock_get_seed.assert_called_once()
-        mock_sign_seed.assert_called_once_with('123456789', 'cert_content', 'key_content')
+        mock_sign_seed.assert_called_once_with('123456789', certificate)
         mock_get_token.assert_called_once_with('signed_seed')
 
     def test_upload_dte_not_authenticated(self, soap_service):

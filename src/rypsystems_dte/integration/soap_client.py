@@ -9,7 +9,6 @@ import xml.etree.ElementTree as ET
 from typing import Optional, Dict, Any, List
 import requests
 from datetime import datetime
-import hashlib
 import base64
 import logging
 
@@ -208,81 +207,55 @@ class SoapClient:
                     raise SiiConnectionException(f"Connection error: {e}", endpoint=url)
                 logger.warning(f"Connection error, retrying... (attempt {attempt + 1})")
 
-    def authenticate(self, rut_company: str, certificate_content: str, private_key_content: str) -> str:
+    def _sii_service(self):
+        """Servicio SOAP del SII (sii.webservices), única implementación de la comunicación."""
+        if getattr(self, '_service', None) is None:
+            from ..sii.webservices.soap_service import SoapService
+            from ..sii.webservices.sii_endpoints import SiiEnvironment
+            environment = (
+                SiiEnvironment.PRODUCCION if self.ambiente == SiiAmbiente.PRODUCCION
+                else SiiEnvironment.CERTIFICACION
+            )
+            self._service = SoapService(environment, self.timeout, self.retry_attempts)
+        return self._service
+
+    def authenticate(self, rut_company, certificate_content=None, private_key_content=None) -> str:
         """
-        Authenticate with SII and get access token.
+        Autentica en el SII y obtiene un token.
+
+        Delega en rypsystems_dte.sii.webservices.SoapService.
 
         Args:
-            rut_company: Company RUT
-            certificate_content: X.509 certificate content
-            private_key_content: Private key content
+            rut_company: DigitalCertificate, o el RUT de la empresa (firma antigua)
+            certificate_content: Certificado en PEM (firma antigua)
+            private_key_content: Clave privada en PEM (firma antigua)
 
         Returns:
-            Authentication token
+            Token de autenticación
 
         Raises:
-            SiiAuthenticationException: If authentication fails
+            SiiAuthenticationException: Si falla la autenticación
         """
+        from ..sii.webservices.exceptions import SiiWebServiceException
         try:
-            # Step 1: Get seed from SII
-            seed_body = f'''
-                <tns:getSeed/>
-            '''
-
-            seed_response = self._make_soap_request('authentication', seed_body)
-            seed_value = seed_response.get('seed', '')
-
-            if not seed_value:
-                raise SiiAuthenticationException("No se pudo obtener seed del SII")
-
-            # Step 2: Sign seed with certificate (simplified implementation)
-            # In production, use proper cryptographic signing
-            signed_seed = self._sign_seed(seed_value, certificate_content, private_key_content)
-
-            # Step 3: Get authentication token
-            auth_body = f'''
-                <tns:getToken>
-                    <tns:semilla>{signed_seed}</tns:semilla>
-                </tns:getToken>
-            '''
-
-            auth_response = self._make_soap_request('authentication', auth_body)
-            token = auth_response.get('token', '')
-
-            if not token:
-                raise SiiAuthenticationException("No se pudo obtener token de autenticación")
-
-            self.auth_token = token
-            self.token_expiry = datetime.now()
-
-            logger.info(f"Successfully authenticated with SII for RUT {rut_company}")
-            return token
-
-        except Exception as e:
-            if isinstance(e, SiiAuthenticationException):
-                raise
+            token = self._sii_service().authenticate(rut_company, certificate_content, private_key_content)
+        except SiiWebServiceException as e:
             raise SiiAuthenticationException(f"Error en autenticación: {e}")
+        self.auth_token = token
+        self.token_expiry = self._sii_service().token_expiry
+        return token
 
-    def _sign_seed(self, seed: str, certificate: str, private_key: str) -> str:
+    def _sign_seed(self, seed: str, certificate, private_key: Optional[str] = None) -> str:
         """
-        Sign seed with certificate (simplified implementation).
+        Firma la solicitud getToken con la semilla (XML-DSig).
 
-        In production, this should use proper PKCS#7 signing with the certificate.
-        This is a simplified version for demonstration.
-
-        Args:
-            seed: Seed value from SII
-            certificate: X.509 certificate
-            private_key: Private key
-
-        Returns:
-            Base64 encoded signed seed
+        Delega en SoapService.sign_seed().
         """
-        # TODO: Implement proper PKCS#7 signing
-        # For now, return a base64 encoded hash (NOT cryptographically secure)
-        combined = f"{seed}{certificate[:100]}"
-        hash_value = hashlib.sha256(combined.encode()).digest()
-        return base64.b64encode(hash_value).decode()
+        from ..sii.webservices.exceptions import SiiWebServiceException
+        try:
+            return self._sii_service().sign_seed(seed, certificate, private_key)
+        except SiiWebServiceException as e:
+            raise SiiAuthenticationException(str(e))
 
     def submit_documents(self, request: SiiSubmissionRequest) -> SiiResponse:
         """

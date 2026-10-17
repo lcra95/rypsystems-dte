@@ -5,16 +5,18 @@ Implementa la comunicación SOAP con los servicios web del SII chileno,
 incluyendo autenticación, envío de documentos y consulta de estados.
 """
 
+import re
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Union
-import requests
-import hashlib
-import base64
-from datetime import datetime
+from xml.sax.saxutils import escape
 import logging
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography import x509
+
+import requests
+
+from ...firma.digital_certificate import DigitalCertificate
+from ...firma.xml_signer import XmlSigner
+from ...xml.encoder import XmlEncoder, save_xml
 
 from .sii_endpoints import SiiEndpoints, SiiEnvironment
 from .exceptions import (
@@ -41,7 +43,8 @@ class SoapService:
         self,
         environment: SiiEnvironment = SiiEnvironment.CERTIFICACION,
         timeout: int = 30,
-        retry_attempts: int = 3
+        retry_attempts: int = 3,
+        token_ttl: int = 3600,
     ):
         """
         Initialize SOAP service.
@@ -59,6 +62,7 @@ class SoapService:
         # Authentication state
         self.auth_token = None
         self.token_expiry = None
+        self.token_ttl = token_ttl
 
         # Configure session
         self.session.headers.update({
@@ -66,170 +70,191 @@ class SoapService:
             'User-Agent': 'rypsystems-dte/1.0.0'
         })
 
+    # ------------------------------------------------------------------
+    # Llamadas SOAP (RPC/literal) a los servicios DTEWS del SII
+    # ------------------------------------------------------------------
+
+    def _service_url(self, service: str) -> str:
+        """URL del servicio .jws en el servidor del ambiente (maullin o palena)."""
+        return f"{self.endpoints.base_urls['soap']}/{service}.jws"
+
+    def _rpc_envelope(self, service: str, function: str, params: Optional[Dict[str, Any]] = None) -> str:
+        """Arma el sobre SOAP de una llamada RPC/literal."""
+        args = ''.join(
+            f'<{name}>{escape(str(value))}</{name}>' for name, value in (params or {}).items()
+        )
+        return (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">'
+            '<soapenv:Body>'
+            f'<ns1:{function} xmlns:ns1="{self._service_url(service)}">{args}</ns1:{function}>'
+            '</soapenv:Body>'
+            '</soapenv:Envelope>'
+        )
+
+    def _call(self, service: str, function: str, params: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Llama una función de un servicio DTEWS y entrega el contenido de
+        {function}Return (un XML como texto en el caso de los servicios DTE).
+
+        Raises:
+            SiiCommunicationError: Si la respuesta no tiene el formato esperado
+        """
+        url = self._service_url(service)
+        response = self._make_soap_request(url, self._rpc_envelope(service, function, params), '')
+        # El SII declara UTF-8 pero puede enviar ISO-8859-1; se reemplazan los
+        # caracteres inválidos como hace LibreDTE PHP.
+        response = response.replace('\ufffd', '?').replace('ï¿½', '?')
+        try:
+            root = ET.fromstring(response.encode('utf-8'))
+        except ET.ParseError as e:
+            raise SiiCommunicationError(f"Respuesta inválida del SII en {function}: {e}", endpoint=url)
+
+        fault = root.find('.//{http://schemas.xmlsoap.org/soap/envelope/}Fault')
+        if fault is not None:
+            raise SiiCommunicationError(
+                f"El SII respondió con error en {function}: {fault.findtext('faultstring')}", endpoint=url
+            )
+
+        for node in root.iter():
+            if isinstance(node.tag, str) and node.tag.split('}')[-1] == f'{function}Return':
+                return (node.text or '').strip()
+        raise SiiCommunicationError(f"La respuesta del SII no contiene {function}Return.", endpoint=url)
+
+    @staticmethod
+    def _parse_respuesta(xml: str) -> Dict[str, Optional[str]]:
+        """
+        Extrae los campos de una respuesta SII:RESPUESTA (ESTADO, GLOSA y los
+        nodos de RESP_BODY), ignorando namespaces.
+        """
+        xml = re.sub(r'^\s*<\?xml[^>]*\?>', '', xml or '')
+        try:
+            root = ET.fromstring(xml)
+        except ET.ParseError as e:
+            raise SiiCommunicationError(f"La respuesta del SII no es un XML válido: {e}")
+        data: Dict[str, Optional[str]] = {}
+        for node in root.iter():
+            if isinstance(node.tag, str) and len(node) == 0:
+                data[node.tag.split('}')[-1]] = (node.text or '').strip()
+        return data
+
+    # ------------------------------------------------------------------
+    # Autenticación: semilla -> getToken firmado -> token
+    # ------------------------------------------------------------------
+
     def get_seed(self) -> str:
         """
-        Obtiene semilla del SII para autenticación.
+        Obtiene una semilla del servicio CrSeed.
 
         Returns:
-            Semilla como string
+            Semilla (número como string)
 
         Raises:
-            SiiCommunicationError: Si hay error en comunicación
+            SiiCommunicationError: Si el SII no entrega una semilla válida
         """
-        soap_body = """<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
-    <soapenv:Header/>
-    <soapenv:Body>
-        <getSeed xmlns="https://palena.sii.cl/DTEWS/CrSeed.jws"/>
-    </soapenv:Body>
-</soapenv:Envelope>"""
+        respuesta = self._parse_respuesta(self._call('CrSeed', 'getSeed'))
+        semilla = respuesta.get('SEMILLA')
+        if respuesta.get('ESTADO') != '00' or not semilla or not semilla.isdigit() or int(semilla) == 0:
+            raise SiiCommunicationError("Semilla inválida recibida del SII")
+        logger.info("Semilla obtenida exitosamente del SII")
+        # LibreDTE PHP la convierte a entero antes de firmarla.
+        return str(int(semilla))
 
-        try:
-            url = self.endpoints.get_soap_url('auth_seed')
-            response = self._make_soap_request(url, soap_body, 'getSeed')
-
-            # Parse response
-            root = ET.fromstring(response)
-            seed_element = root.find('.//{https://palena.sii.cl/DTEWS/CrSeed.jws}getSeedReturn')
-
-            if seed_element is None:
-                raise SiiCommunicationError("No se pudo obtener semilla del SII")
-
-            seed = seed_element.text
-            if not seed or seed == '0':
-                raise SiiCommunicationError("Semilla inválida recibida del SII")
-
-            logger.info("Semilla obtenida exitosamente del SII")
-            return seed
-
-        except Exception as e:
-            if isinstance(e, SiiWebServiceException):
-                raise
-            raise SiiCommunicationError(f"Error obteniendo semilla: {str(e)}")
-
-    def sign_seed(self, seed: str, certificate_content: str, private_key_content: str) -> str:
+    def sign_seed(
+        self,
+        seed: str,
+        certificate: Union[DigitalCertificate, str],
+        private_key_content: Optional[str] = None,
+    ) -> str:
         """
-        Firma la semilla con el certificado digital.
+        Arma y firma (XML-DSig, documento completo) la solicitud getToken.
 
         Args:
-            seed: Semilla obtenida del SII
-            certificate_content: Contenido del certificado en formato PEM
-            private_key_content: Contenido de la clave privada en formato PEM
+            seed: Semilla obtenida con get_seed()
+            certificate: Certificado con clave privada. Por compatibilidad
+                también se acepta el certificado en PEM más private_key_content.
 
         Returns:
-            Semilla firmada en base64
+            XML getToken firmado (ISO-8859-1) como texto
 
         Raises:
-            SiiAuthenticationError: Si hay error en la firma
+            SiiAuthenticationError: Si no es posible firmar
         """
         try:
-            # Load private key
-            if isinstance(private_key_content, str):
-                private_key_content = private_key_content.encode('utf-8')
-
-            private_key = serialization.load_pem_private_key(
-                private_key_content,
-                password=None
-            )
-
-            # Sign the seed
-            signature = private_key.sign(
-                seed.encode('utf-8'),
-                padding.PKCS1v15(),
-                hashes.SHA1()
-            )
-
-            # Encode signature in base64
-            signed_seed = base64.b64encode(signature).decode('utf-8')
-
-            logger.debug("Semilla firmada exitosamente")
-            return signed_seed
-
+            if not isinstance(certificate, DigitalCertificate):
+                certificate = DigitalCertificate.from_pem(certificate, private_key_content)
+            xml = save_xml(XmlEncoder().encode({'getToken': {'item': {'Semilla': int(seed)}}}))
+            signed = XmlSigner().sign_xml(xml, certificate)
         except Exception as e:
-            raise SiiAuthenticationError(f"Error firmando semilla: {str(e)}")
+            raise SiiAuthenticationError(f"No fue posible firmar getToken. {e}")
+        logger.debug("Solicitud getToken firmada exitosamente")
+        return signed.decode('iso-8859-1')
 
     def get_token(self, signed_seed: str) -> str:
         """
-        Obtiene token de autenticación usando semilla firmada.
+        Obtiene un token del servicio GetTokenFromSeed.
 
         Args:
-            signed_seed: Semilla firmada en base64
+            signed_seed: XML getToken firmado (ver sign_seed())
 
         Returns:
             Token de autenticación
 
         Raises:
-            SiiAuthenticationError: Si hay error obteniendo token
+            SiiAuthenticationError: Si el SII rechaza la solicitud
         """
-        soap_body = f"""<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
-    <soapenv:Header/>
-    <soapenv:Body>
-        <getToken xmlns="https://palena.sii.cl/DTEWS/GetTokenFromSeed.jws">
-            <pszXml><![CDATA[{signed_seed}]]></pszXml>
-        </getToken>
-    </soapenv:Body>
-</soapenv:Envelope>"""
-
         try:
-            url = self.endpoints.get_soap_url('auth_token')
-            response = self._make_soap_request(url, soap_body, 'getToken')
+            respuesta = self._parse_respuesta(self._call('GetTokenFromSeed', 'getToken', {'pszXml': signed_seed}))
+        except SiiCommunicationError as e:
+            raise SiiAuthenticationError(f"Error obteniendo token: {e}")
 
-            # Parse response
-            root = ET.fromstring(response)
-            token_element = root.find('.//{https://palena.sii.cl/DTEWS/GetTokenFromSeed.jws}getTokenReturn')
+        token = respuesta.get('TOKEN')
+        if respuesta.get('ESTADO') != '00' or not token:
+            raise SiiAuthenticationError(
+                f"No fue posible obtener el token del SII (estado {respuesta.get('ESTADO')}). "
+                f"{respuesta.get('GLOSA') or ''}".strip()
+            )
 
-            if token_element is None:
-                raise SiiAuthenticationError("No se pudo obtener token del SII")
+        self.auth_token = token
+        self.token_expiry = datetime.now() + timedelta(seconds=self.token_ttl)
+        logger.info("Token de autenticación obtenido exitosamente")
+        return token
 
-            token = token_element.text
-            if not token:
-                raise SiiAuthenticationError("Token vacío recibido del SII")
-
-            # Store token
-            self.auth_token = token
-            self.token_expiry = datetime.now()
-
-            logger.info("Token de autenticación obtenido exitosamente")
-            return token
-
-        except Exception as e:
-            if isinstance(e, SiiWebServiceException):
-                raise
-            raise SiiAuthenticationError(f"Error obteniendo token: {str(e)}")
-
-    def authenticate(self, rut_company: str, certificate_content: str, private_key_content: str) -> str:
+    def authenticate(
+        self,
+        certificate: Union[DigitalCertificate, str],
+        certificate_content: Optional[str] = None,
+        private_key_content: Optional[str] = None,
+    ) -> str:
         """
-        Proceso completo de autenticación con SII.
+        Proceso completo de autenticación con el SII.
 
         Args:
-            rut_company: RUT de la empresa
-            certificate_content: Certificado digital en PEM
-            private_key_content: Clave privada en PEM
+            certificate: Certificado con clave privada. Por compatibilidad se
+                acepta authenticate(rut, certificado_pem, clave_pem).
 
         Returns:
-            Token de autenticación
+            Token de autenticación (se reutiliza mientras esté vigente)
 
         Raises:
             SiiAuthenticationError: Si falla la autenticación
         """
+        if self.is_authenticated():
+            return self.auth_token
+        if not isinstance(certificate, DigitalCertificate):
+            # Firma antigua: authenticate(rut_company, certificate_pem, private_key_pem)
+            certificate = certificate_content
         try:
-            # Step 1: Get seed
             seed = self.get_seed()
-
-            # Step 2: Sign seed
-            signed_seed = self.sign_seed(seed, certificate_content, private_key_content)
-
-            # Step 3: Get token
-            token = self.get_token(signed_seed)
-
-            logger.info(f"Autenticación completa exitosa para RUT {rut_company}")
-            return token
-
+            if isinstance(certificate, DigitalCertificate):
+                signed_seed = self.sign_seed(seed, certificate)
+            else:
+                signed_seed = self.sign_seed(seed, certificate, private_key_content)
+            return self.get_token(signed_seed)
+        except SiiWebServiceException:
+            raise
         except Exception as e:
-            if isinstance(e, SiiWebServiceException):
-                raise
-            raise SiiAuthenticationError(f"Error en autenticación: {str(e)}")
+            raise SiiAuthenticationError(f"Error en autenticación: {e}")
 
     def upload_dte(self, rut_sender: str, rut_company: str, file_content: str) -> Dict[str, Any]:
         """
@@ -373,7 +398,7 @@ class SoapService:
 
                 response = self.session.post(
                     url,
-                    data=soap_body,
+                    data=soap_body.encode('utf-8') if isinstance(soap_body, str) else soap_body,
                     headers=headers,
                     timeout=self.timeout
                 )
@@ -507,14 +532,15 @@ class SoapService:
             True si hay conectividad
         """
         try:
-            seed = self.get_seed()
-            return bool(seed and seed != '0')
+            return bool(self.get_seed())
         except Exception:
             return False
 
     def is_authenticated(self) -> bool:
         """Verifica si hay una sesión autenticada válida."""
-        return bool(self.auth_token)
+        if not self.auth_token:
+            return False
+        return self.token_expiry is None or datetime.now() < self.token_expiry
 
     def logout(self):
         """Limpia token de autenticación."""

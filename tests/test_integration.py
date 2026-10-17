@@ -299,14 +299,18 @@ class TestSoapClient:
             soap_client._make_soap_request('authentication', '<test/>')
 
     def test_sign_seed_basic(self, soap_client):
-        """Prueba firma básica de seed."""
-        seed = "test_seed"
-        certificate = "test_certificate"
-        private_key = "test_private_key"
+        """La solicitud getToken se firma con XML-DSig (documento completo)."""
+        from rypsystems_dte.firma import SelfSignedCertificate, XmlSigner
 
-        signed = soap_client._sign_seed(seed, certificate, private_key)
-        assert isinstance(signed, str)
-        assert len(signed) > 0
+        certificate = SelfSignedCertificate().create()
+        signed = soap_client._sign_seed("123456789", certificate)
+        assert '<Semilla>123456789</Semilla>' in signed
+        assert XmlSigner().is_valid_xml(signed.encode('iso-8859-1'))
+
+    def test_sign_seed_certificado_invalido(self, soap_client):
+        """Ya no se aceptan certificados falsos (antes se devolvía un hash)."""
+        with pytest.raises(SiiAuthenticationException):
+            soap_client._sign_seed("123456789", "test_certificate", "test_private_key")
 
 
 class TestRestClient:
