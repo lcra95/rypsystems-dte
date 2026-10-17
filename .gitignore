@@ -1,1 +1,13 @@
 *.pyc
+__pycache__/
+.venv/
+.pytest_cache/
+
+# Material sensible: certificados digitales, claves y CAF reales
+*.pfx
+*.p12
+*.pem
+*.key
+*.pass
+caf/
+secrets/

@@ -1,6 +1,12 @@
 cryptography>=41.0.0    # Firmas digitales
-lxml>=4.9.0            # XML manipulation
+lxml>=4.9.0            # XML manipulation, C14N y validación XSD
 requests>=2.31.0       # HTTP clients
 pydantic>=2.0.0        # Data validation
 python-barcode>=0.15.0 # PDF417 codes
+pillow>=10.0.0         # Imágenes PDF417
+jinja2>=3.1.0          # Plantillas de renderizado
+reportlab>=4.0.0       # Generación de PDF
+pyyaml>=6.0            # Configuración YAML
+psutil>=5.9.0          # Métricas de monitoreo
 pytest>=7.0.0          # Testing
+pytest-timeout>=2.1.0  # Testing: límite de tiempo por test
