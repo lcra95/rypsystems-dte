@@ -154,9 +154,14 @@ def main() -> None:
         if args.consultar:
             for intento in range(12):
                 time.sleep(10)
-                estado = service.query_upload_status(rut, track_id)
+                try:
+                    estado = service.query_upload_status(rut, track_id)
+                except Exception as e:  # p. ej. HTTP 503 temporal del SII
+                    print(f'  [{intento + 1}] {e}')
+                    continue
                 print(f"  [{intento + 1}] {estado['estado']} - {estado['descripcion'] or estado['glosa']}")
-                if estado['estado'] not in ('REC', 'SOK', 'CRT', 'FOK', 'PDR', None):
+                # Estados intermedios de libros: LRC (recibido), LSO (esquema correcto).
+                if estado['estado'] not in ('REC', 'SOK', 'CRT', 'FOK', 'PDR', 'LRC', 'LSO', None):
                     break
 
 
