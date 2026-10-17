@@ -1,0 +1,56 @@
+# SET BASICO - NUMERO DE ATENCION: 5136564
+# Transcripción de SIISetDePruebas785325664.txt (SII, ambiente de certificación).
+# Los montos (neto, IVA, total) los calcula el normalizador.
+numero_atencion: 5136564
+casos:
+  - caso: 5136564-1
+    tipo: 33
+    detalle:
+      - {NmbItem: Cajón AFECTO, QtyItem: 145, PrcItem: 2175}
+      - {NmbItem: Relleno AFECTO, QtyItem: 62, PrcItem: 3590}
+
+  - caso: 5136564-2
+    tipo: 33
+    detalle:
+      - {NmbItem: Pañuelo AFECTO, QtyItem: 490, PrcItem: 3851, DescuentoPct: 7}
+      - {NmbItem: ITEM 2 AFECTO, QtyItem: 425, PrcItem: 2909, DescuentoPct: 14}
+
+  - caso: 5136564-3
+    tipo: 33
+    detalle:
+      - {NmbItem: Pintura B&W AFECTO, QtyItem: 37, PrcItem: 4475}
+      - {NmbItem: ITEM 2 AFECTO, QtyItem: 191, PrcItem: 3396}
+      - {NmbItem: ITEM 3 SERVICIO EXENTO, QtyItem: 1, PrcItem: 34991, IndExe: 1}
+
+  - caso: 5136564-4
+    tipo: 33
+    detalle:
+      - {NmbItem: ITEM 1 AFECTO, QtyItem: 243, PrcItem: 3743}
+      - {NmbItem: ITEM 2 AFECTO, QtyItem: 103, PrcItem: 4232}
+      - {NmbItem: ITEM 3 SERVICIO EXENTO, QtyItem: 2, PrcItem: 6799, IndExe: 1}
+    descuentos_recargos:
+      - {TpoMov: D, GlosaDR: DESCUENTO GLOBAL ITEMES AFECTOS, TpoValor: '%', ValorDR: 14}
+
+  - caso: 5136564-5
+    tipo: 61
+    referencia: {caso: 5136564-1, CodRef: 2, RazonRef: CORRIGE GIRO DEL RECEPTOR}
+    detalle:
+      - {NmbItem: CORRIGE GIRO DEL RECEPTOR, QtyItem: 1, PrcItem: false}
+
+  - caso: 5136564-6
+    tipo: 61
+    referencia: {caso: 5136564-2, CodRef: 3, RazonRef: DEVOLUCION DE MERCADERIAS}
+    # Mismos precios y descuentos de la factura del caso 2.
+    detalle:
+      - {NmbItem: Pañuelo AFECTO, QtyItem: 180, PrcItem: 3851, DescuentoPct: 7}
+      - {NmbItem: ITEM 2 AFECTO, QtyItem: 288, PrcItem: 2909, DescuentoPct: 14}
+
+  - caso: 5136564-7
+    tipo: 61
+    referencia: {caso: 5136564-3, CodRef: 1, RazonRef: ANULA FACTURA}
+    detalle: copiar  # Mismo detalle de la factura referenciada.
+
+  - caso: 5136564-8
+    tipo: 56
+    referencia: {caso: 5136564-5, CodRef: 1, RazonRef: ANULA NOTA DE CREDITO ELECTRONICA}
+    detalle: copiar

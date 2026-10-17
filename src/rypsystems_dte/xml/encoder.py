@@ -8,6 +8,7 @@ listas, valores omitidos y escape de textos, con salida en ISO-8859-1.
 
 import re
 from copy import deepcopy
+from datetime import date, datetime
 from typing import Any, Dict, Optional
 
 from lxml import etree
@@ -64,6 +65,10 @@ def _skip(value: Any) -> bool:
 def _to_text(value: Any, name: str) -> str:
     if value is True:
         return '1'
+    if isinstance(value, datetime):
+        return value.strftime('%Y-%m-%dT%H:%M:%S')
+    if isinstance(value, date):
+        return value.isoformat()
     if isinstance(value, (str, int, float)):
         if isinstance(value, float) and value.is_integer():
             # PHP convierte 10.0 a "10".
