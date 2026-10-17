@@ -24,6 +24,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from lxml import etree
 
+from ..xml.canonical import c14n as _c14n, parse, to_bytes as _to_bytes
 from .digital_certificate import DigitalCertificate
 
 XMLDSIG_NS = 'http://www.w3.org/2000/09/xmldsig#'
@@ -33,7 +34,6 @@ RSA_SHA1_ALGORITHM = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1'
 SHA1_ALGORITHM = 'http://www.w3.org/2000/09/xmldsig#sha1'
 
 _XML_DECLARATION_RE = re.compile(rb'^\s*<\?xml[^>]*\?>', re.DOTALL)
-_ENCODING_RE = re.compile(rb'encoding\s*=\s*["\']([A-Za-z0-9._-]+)["\']')
 
 
 class SignatureError(Exception):
@@ -44,53 +44,11 @@ def _wordwrap(value: str, width: int = 64) -> str:
     return '\n'.join(textwrap.wrap(value, width))
 
 
-def _to_bytes(xml: Union[str, bytes]) -> bytes:
-    """
-    Normaliza el XML de entrada a bytes en el encoding de su declaración.
-
-    Si se entrega un str, se codifica según el encoding declarado (por defecto
-    ISO-8859-1, que es el usado por el SII).
-    """
-    if isinstance(xml, bytes):
-        return xml
-    match = _ENCODING_RE.search(xml[:200].encode('ascii', 'ignore'))
-    encoding = match.group(1).decode('ascii') if match else 'ISO-8859-1'
-    return xml.encode(encoding, errors='xmlcharrefreplace')
-
-
 def _parse(xml: Union[str, bytes]) -> etree._ElementTree:
-    parser = etree.XMLParser(remove_blank_text=False, resolve_entities=False, huge_tree=True)
     try:
-        return etree.fromstring(_to_bytes(xml), parser).getroottree()
+        return parse(xml)
     except etree.XMLSyntaxError as e:
         raise SignatureError(f'El XML a firmar no es válido: {e}') from e
-
-
-def _c14n(node: etree._Element) -> bytes:
-    """
-    C14N inclusiva, sin comentarios, del nodo en el contexto de su documento.
-
-    Equivale a DOMNode::C14N() de PHP. No se usa directamente
-    etree.tostring(node, method='c14n') sobre un subárbol porque libxml2,
-    vía lxml, emite declaraciones xmlns="" erróneas en los hijos de un nodo
-    con namespace por defecto. En su lugar se canonicaliza una copia aislada
-    del nodo que declara todos los namespaces que tiene en alcance, que es
-    exactamente lo que exige la C14N inclusiva para el nodo superior.
-    """
-    if node.getparent() is None:
-        return etree.tostring(node, method='c14n', exclusive=False, with_comments=False)
-
-    isolated = etree.Element(node.tag, attrib=dict(node.attrib), nsmap=node.nsmap)
-    isolated.text = node.text
-    for child in node:
-        isolated.append(deepcopy(child))
-    # Atributos xml:* heredados de los ancestros (C14N inclusiva los incluye).
-    for ancestor in node.iterancestors():
-        for name, value in ancestor.attrib.items():
-            if name.startswith('{http://www.w3.org/XML/1998/namespace}') and name not in isolated.attrib:
-                isolated.set(name, value)
-
-    return etree.tostring(isolated, method='c14n', exclusive=False, with_comments=False)
 
 
 def _find_by_id(tree: etree._ElementTree, reference: str) -> etree._Element:
