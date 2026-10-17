@@ -8,11 +8,13 @@ Componentes:
 - Builder: Constructores para diferentes tipos de documentos
 - Factory: Fábrica para crear documentos según tipo
 - Bag: Contenedor de datos y opciones de documento
+- Envelope: Sobre de envío EnvioDTE firmado
 """
 
 from .document import BaseDocument
 from .factory import DTEFactory
 from .builder import DTEBuilder
 from .bag import DocumentBag
+from .envelope import DocumentEnvelope, EnvelopeError
 
-__all__ = ['BaseDocument', 'DTEFactory', 'DTEBuilder', 'DocumentBag']
+__all__ = ['BaseDocument', 'DTEFactory', 'DTEBuilder', 'DocumentBag', 'DocumentEnvelope', 'EnvelopeError']
