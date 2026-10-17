@@ -230,26 +230,111 @@ class TestSoapService:
         with pytest.raises(SiiAuthenticationError, match="No hay token"):
             soap_service.upload_dte('76354771-K', '76354771-K', '<xml>test</xml>')
 
-    @patch('requests.Session.post')
-    def test_upload_dte_success(self, mock_post, soap_service):
-        """Prueba envío exitoso de DTE."""
-        soap_service.auth_token = 'ABC123TOKEN'
-
+    @staticmethod
+    def _upload_response(status: str, track_id: str = '', detail: str = '') -> Mock:
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.text = '''<?xml version="1.0" encoding="UTF-8"?>
-        <soapenv:Envelope>
-            <soapenv:Body>
-                <uploadDTEReturn>0 - Proceso OK</uploadDTEReturn>
-            </soapenv:Body>
-        </soapenv:Envelope>'''
-        mock_post.return_value = mock_response
+        mock_response.content = (
+            '<?xml version="1.0" encoding="ISO-8859-1"?>\n<RECEPCIONDTE>'
+            '<RUTSENDER>11222333-9</RUTSENDER><RUTCOMPANY>76192083-9</RUTCOMPANY>'
+            '<FILE>76192083-9_x.xml</FILE><TIMESTAMP>2026-10-17 17:00:00</TIMESTAMP>'
+            f'<STATUS>{status}</STATUS>'
+            + (f'<TRACKID>{track_id}</TRACKID>' if track_id else '')
+            + (f'<DETAIL><ERROR>{detail}</ERROR></DETAIL>' if detail else '')
+            + '</RECEPCIONDTE>'
+        ).encode('iso-8859-1')
+        return mock_response
 
-        result = soap_service.upload_dte('76354771-K', '76354771-K', '<xml>test</xml>')
+    @patch('requests.post')
+    def test_upload_dte_success(self, mock_post, soap_service):
+        """Envío exitoso: POST multipart a DTEUpload con la cookie TOKEN."""
+        soap_service.auth_token = 'ABC123TOKEN'
+        mock_post.return_value = self._upload_response('0', '0123456789')
+
+        result = soap_service.upload_dte('11222333-9', '76192083-9', '<EnvioDTE/>')
 
         assert result['success'] is True
         assert result['code'] == '0'
-        assert 'Proceso OK' in result['message']
+        assert result['track_id'] == 123456789
+        args, kwargs = mock_post.call_args
+        assert args[0] == 'https://maullin.sii.cl/cgi_dte/UPL/DTEUpload'
+        assert kwargs['headers']['Cookie'] == 'TOKEN=ABC123TOKEN'
+        assert kwargs['data'] == {'rutSender': '11222333', 'dvSender': '9', 'rutCompany': '76192083', 'dvCompany': '9'}
+        filename, content, mimetype = kwargs['files']['archivo']
+        assert content.startswith(b'<?xml version="1.0" encoding="ISO-8859-1"?>')
+        assert mimetype == 'application/xml'
+
+    @patch('requests.post')
+    def test_upload_dte_rechazado(self, mock_post, soap_service):
+        """El SII rechaza el envío por esquema inválido."""
+        soap_service.auth_token = 'ABC123TOKEN'
+        mock_post.return_value = self._upload_response('7', detail='Error en linea 3')
+
+        with pytest.raises(SiiValidationError, match='esquema del XML es inválido. Error en linea 3'):
+            soap_service.upload_dte('11222333-9', '76192083-9', '<EnvioDTE/>')
+
+    @patch('requests.post')
+    def test_upload_dte_error_500(self, mock_post, soap_service):
+        soap_service.auth_token = 'ABC123TOKEN'
+        soap_service.retry_attempts = 1
+        mock_response = Mock(status_code=500, content=b'Error 500')
+        mock_post.return_value = mock_response
+
+        with pytest.raises(SiiCommunicationError, match='Error 500'):
+            soap_service.upload_dte('11222333-9', '76192083-9', '<EnvioDTE/>')
+
+    def test_upload_dte_rut_invalido(self, soap_service):
+        soap_service.auth_token = 'ABC123TOKEN'
+        with pytest.raises(SiiValidationError, match='no es válido'):
+            soap_service.upload_dte('11222333-1', '76192083-9', '<EnvioDTE/>')
+
+    @patch('requests.Session.post')
+    def test_query_upload_status(self, mock_post, soap_service):
+        """Estado de un envío por Track ID (QueryEstUp)."""
+        soap_service.auth_token = 'ABC123TOKEN'
+        respuesta = (
+            '<SII:RESPUESTA xmlns:SII="http://www.sii.cl/XMLSchema">'
+            '<SII:RESP_HDR><TRACKID>123</TRACKID><ESTADO>EPR</ESTADO><GLOSA>Envio Procesado</GLOSA>'
+            '<NUM_ATENCION>1 ( 2026/10/17 17:00:00)</NUM_ATENCION></SII:RESP_HDR>'
+            '<SII:RESP_BODY><TIPO_DOCTO>33</TIPO_DOCTO><INFORMADOS>1</INFORMADOS><ACEPTADOS>1</ACEPTADOS>'
+            '<RECHAZADOS>0</RECHAZADOS><REPAROS>0</REPAROS></SII:RESP_BODY></SII:RESPUESTA>'
+        )
+        mock_post.return_value = self._sii_response('getEstUp', 'QueryEstUp', respuesta)
+
+        result = soap_service.query_upload_status('76192083-9', 123)
+
+        assert result['estado'] == 'EPR'
+        assert result['descripcion'] == 'Envío Procesado'
+        assert result['aceptados'] == '1' and result['rechazados'] == '0'
+        sent = mock_post.call_args.kwargs['data'].decode('utf-8')
+        assert '<Rut>76192083</Rut><Dv>9</Dv><TrackId>123</TrackId><Token>ABC123TOKEN</Token>' in sent
+
+    @patch('requests.Session.post')
+    def test_query_document_status(self, mock_post, soap_service):
+        """Estado de un DTE (QueryEstDte)."""
+        soap_service.auth_token = 'ABC123TOKEN'
+        respuesta = (
+            '<SII:RESPUESTA xmlns:SII="http://www.sii.cl/XMLSchema"><SII:RESP_HDR>'
+            '<ESTADO>DOK</ESTADO><GLOSA_ESTADO>Documento Recibido por el SII</GLOSA_ESTADO>'
+            '<ERR_CODE>0</ERR_CODE><GLOSA_ERR>Datos coinciden</GLOSA_ERR><NUM_ATENCION>1</NUM_ATENCION>'
+            '</SII:RESP_HDR></SII:RESPUESTA>'
+        )
+        mock_post.return_value = self._sii_response('getEstDte', 'QueryEstDte', respuesta)
+
+        result = soap_service.query_document_status(
+            '11222333-9', '76192083-9', 33, 1, fecha_emision='2026-10-17', monto=1190, rut_receptor='60803000-K'
+        )
+
+        assert result['estado'] == 'DOK'
+        assert result['glosa'] == 'Documento Recibido por el SII'
+        sent = mock_post.call_args.kwargs['data'].decode('utf-8')
+        assert '<FechaEmisionDte>17102026</FechaEmisionDte>' in sent
+        assert '<RutReceptor>60803000</RutReceptor><DvReceptor>K</DvReceptor>' in sent
+
+    def test_query_document_status_faltan_datos(self, soap_service):
+        soap_service.auth_token = 'ABC123TOKEN'
+        with pytest.raises(SiiValidationError, match='fecha de emisión, monto total y RUT del receptor'):
+            soap_service.query_document_status('11222333-9', '76192083-9', 33, 1)
 
     def test_ping_connectivity(self, soap_service):
         """Prueba verificación de conectividad."""

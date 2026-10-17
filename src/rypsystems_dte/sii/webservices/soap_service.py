@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Union
 from xml.sax.saxutils import escape
 import logging
+import time
 
 import requests
 
@@ -256,119 +257,249 @@ class SoapService:
         except Exception as e:
             raise SiiAuthenticationError(f"Error en autenticación: {e}")
 
-    def upload_dte(self, rut_sender: str, rut_company: str, file_content: str) -> Dict[str, Any]:
+    # ------------------------------------------------------------------
+    # Envío de XML (EnvioDTE) y consultas de estado
+    # ------------------------------------------------------------------
+
+    UPLOAD_STATUS_MESSAGES = {
+        '1': 'El usuario {sender} no tiene permisos para enviar XML al SII.',
+        '2': 'Error en el tamaño del archivo enviado con el XML, muy grande o muy chico.',
+        '3': 'El archivo enviado está cortado, el tamaño es diferente al parámetro "size".',
+        '5': 'El usuario {sender} no está autenticado (posible token expirado).',
+        '6': 'La empresa no está autorizada a enviar archivos XML al SII.',
+        '7': 'El esquema del XML es inválido.',
+        '8': 'Existe un error en la firma del documento XML.',
+        '9': 'Los servidores del SII están con problemas internos.',
+        '99': 'El XML enviado ya fue previamente recibido por el SII.',
+    }
+
+    UPLOAD_STATES = {
+        'RSC': 'Rechazado por Error en Schema',
+        'SOK': 'Schema Validado',
+        'CRT': 'Carátula OK',
+        'RFR': 'Rechazado por Error en Firma',
+        'FOK': 'Firma de Envió Validada',
+        'PDR': 'Envió en Proceso',
+        'RCT': 'Rechazado por Error en Carátula',
+        'EPR': 'Envío Procesado',
+    }
+
+    @staticmethod
+    def _split_rut(rut: str):
+        from ..utils import RutValidator
+        if not RutValidator.validate(rut):
+            raise SiiValidationError(f"El RUT {rut} no es válido.")
+        numero, dv = rut.replace('.', '').upper().split('-')
+        return numero, dv
+
+    def _portal_url(self, path: str) -> str:
+        """URL en el servidor DTE del ambiente (maullin o palena), como getUrl() de PHP."""
+        server = self.endpoints.base_urls['soap'].rsplit('/DTEWS', 1)[0]
+        return f"{server}{path}"
+
+    def upload_dte(
+        self,
+        rut_sender: str,
+        rut_company: str,
+        file_content: Union[str, bytes],
+        compress: bool = False,
+    ) -> Dict[str, Any]:
         """
-        Envía un DTE al SII.
+        Sube un XML (EnvioDTE firmado) al SII.
+
+        Traducción de SendXmlDocumentJob: POST multipart a
+        /cgi_dte/UPL/DTEUpload con el token en la cookie TOKEN.
 
         Args:
-            rut_sender: RUT del emisor
-            rut_company: RUT de la empresa
-            file_content: Contenido XML del DTE
+            rut_sender: RUT de quien envía (el del certificado)
+            rut_company: RUT de la empresa emisora
+            file_content: XML del EnvioDTE en ISO-8859-1
+            compress: Enviar el XML comprimido con gzip
 
         Returns:
-            Respuesta del SII
+            {'success', 'code', 'message', 'track_id', 'response'}
 
         Raises:
-            SiiAuthenticationError: Si no hay token válido
-            SiiValidationError: Si el documento es rechazado
+            SiiAuthenticationError: Si no hay token
+            SiiValidationError: Si el SII rechaza el envío
         """
-        if not self.auth_token:
+        if not self.is_authenticated():
             raise SiiAuthenticationError("No hay token de autenticación. Debe autenticarse primero.")
 
-        soap_body = f"""<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
-    <soapenv:Header>
-        <wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
-            <wsse:UsernameToken>
-                <wsse:Username>{rut_sender}</wsse:Username>
-                <wsse:Password>{self.auth_token}</wsse:Password>
-            </wsse:UsernameToken>
-        </wsse:Security>
-    </soapenv:Header>
-    <soapenv:Body>
-        <uploadDTE xmlns="http://DefaultNamespace">
-            <rutSender>{rut_sender}</rutSender>
-            <rutCompany>{rut_company}</rutCompany>
-            <file><![CDATA[{file_content}]]></file>
-        </uploadDTE>
-    </soapenv:Body>
-</soapenv:Envelope>"""
+        if isinstance(file_content, str):
+            file_content = file_content.encode('iso-8859-1', errors='xmlcharrefreplace')
+        if not file_content.strip() or file_content.strip() == b'<?xml version="1.0" encoding="ISO-8859-1"?>':
+            raise SiiValidationError("El XML que se desea enviar al SII no puede ser vacío.")
+        if b'<?xml' not in file_content[:100]:
+            file_content = b'<?xml version="1.0" encoding="ISO-8859-1"?>\n' + file_content
 
+        rut_s, dv_s = self._split_rut(rut_sender)
+        rut_c, dv_c = self._split_rut(rut_company)
+
+        filename = f"{rut_company}_{datetime.now().strftime('%Y%m%d%H%M%S')}.xml"
+        mimetype = 'application/xml'
+        if compress:
+            import gzip
+            file_content = gzip.compress(file_content)
+            filename += '.gz'
+            mimetype = 'application/gzip'
+
+        url = self._portal_url('/cgi_dte/UPL/DTEUpload')
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; PROG 1.0; RypSystems DTE)',
+            'Cookie': f'TOKEN={self.auth_token}',
+        }
+        data = {'rutSender': rut_s, 'dvSender': dv_s, 'rutCompany': rut_c, 'dvCompany': dv_c}
+
+        body = None
+        for attempt in range(self.retry_attempts):
+            try:
+                response = requests.post(
+                    url,
+                    data=data,
+                    files={'archivo': (filename, file_content, mimetype)},
+                    headers=headers,
+                    timeout=self.timeout,
+                )
+                body = response.content
+                if body and body.strip() != b'Error 500' and response.status_code < 500:
+                    break
+            except requests.exceptions.RequestException as e:
+                body = None
+                logger.warning(f"Error subiendo XML al SII (intento {attempt + 1}): {e}")
+            if attempt < self.retry_attempts - 1:
+                time.sleep(0.2 * self.retry_attempts)
+
+        if not body or body.strip() == b'Error 500':
+            raise SiiCommunicationError(
+                "Falló el envío del XML al SII. El SII tiene problemas en sus servidores (Error 500)."
+                if body else "Falló el envío del XML al SII. No hubo respuesta.",
+                endpoint=url,
+            )
+
+        return self._parse_upload_response(body, rut_sender)
+
+    def _parse_upload_response(self, response_xml: Union[str, bytes], rut_sender: str = '') -> Dict[str, Any]:
+        """Interpreta la respuesta RECEPCIONDTE del upload."""
+        if isinstance(response_xml, str):
+            response_xml = response_xml.encode('iso-8859-1', errors='replace')
         try:
-            url = self.endpoints.get_soap_url('upload_dte')
-            response = self._make_soap_request(url, soap_body, 'uploadDTE')
+            root = ET.fromstring(re.sub(rb'^\s*<\?xml[^>]*\?>', b'', response_xml))
+        except ET.ParseError as e:
+            raise SiiCommunicationError(f"La respuesta del envío del XML al SII no es válida: {e}")
 
-            # Parse response
-            response_data = self._parse_upload_response(response)
+        status = (root.findtext('.//STATUS') or '').strip()
+        track_id = (root.findtext('.//TRACKID') or '').strip()
+        errors = [(e.text or '').strip() for e in root.iter('ERROR')]
 
-            logger.info(f"Documento enviado exitosamente para RUT {rut_sender}")
-            return response_data
+        if not status:
+            raise SiiCommunicationError("La respuesta del envío del XML al SII no trae un código de estado válido.")
 
-        except Exception as e:
-            if isinstance(e, SiiWebServiceException):
-                raise
-            raise SiiValidationError(f"Error enviando documento: {str(e)}")
+        if status == '0':
+            logger.info(f"XML enviado al SII, Track ID {track_id}")
+            return {
+                'success': True,
+                'code': status,
+                'message': 'Envío recibido por el SII',
+                'track_id': int(track_id) if track_id.isdigit() else track_id,
+                'response': response_xml.decode('iso-8859-1'),
+            }
+
+        message = self.UPLOAD_STATUS_MESSAGES.get(
+            status, f'Ocurrió un error con código de estado "{status}", que es desconocido.'
+        ).format(sender=rut_sender)
+        if errors:
+            message += ' ' + ' '.join(errors)
+        raise SiiValidationError(message)
+
+    def query_upload_status(self, rut_company: str, track_id: Union[int, str]) -> Dict[str, Any]:
+        """
+        Consulta el estado de un envío por su Track ID (servicio QueryEstUp).
+
+        Traducción de CheckXmlDocumentSentStatusJob.
+
+        Returns:
+            {'estado', 'glosa', 'num_atencion', 'aceptados', 'rechazados', 'reparos', 'informados', 'raw'}
+        """
+        if not self.is_authenticated():
+            raise SiiAuthenticationError("No hay token de autenticación. Debe autenticarse primero.")
+        rut, dv = self._split_rut(rut_company)
+        xml = self._call('QueryEstUp', 'getEstUp', {
+            'Rut': rut, 'Dv': dv, 'TrackId': track_id, 'Token': self.auth_token,
+        })
+        data = self._parse_respuesta(xml)
+        estado = data.get('ESTADO')
+        return {
+            'estado': estado,
+            'descripcion': self.UPLOAD_STATES.get(estado or '', data.get('GLOSA')),
+            'glosa': data.get('GLOSA'),
+            'num_atencion': data.get('NUM_ATENCION'),
+            'informados': data.get('INFORMADOS'),
+            'aceptados': data.get('ACEPTADOS'),
+            'rechazados': data.get('RECHAZADOS'),
+            'reparos': data.get('REPAROS'),
+            'raw': xml,
+        }
 
     def query_document_status(
         self,
         rut_sender: str,
         rut_company: str,
         document_type: int,
-        folio: int
+        folio: int,
+        fecha_emision: Optional[str] = None,
+        monto: Optional[int] = None,
+        rut_receptor: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Consulta el estado de un documento en SII.
+        Consulta el estado de un DTE en el SII (servicio QueryEstDte).
+
+        Traducción de ValidateDocumentJob.
 
         Args:
-            rut_sender: RUT del emisor
-            rut_company: RUT de la empresa
-            document_type: Tipo de documento
-            folio: Folio del documento
+            rut_sender: RUT del consultante (el del certificado)
+            rut_company: RUT de la empresa emisora
+            document_type: Tipo de DTE
+            folio: Folio
+            fecha_emision: Fecha de emisión AAAA-MM-DD
+            monto: Monto total
+            rut_receptor: RUT del receptor
 
         Returns:
-            Estado del documento
-
-        Raises:
-            SiiAuthenticationError: Si no hay token válido
+            {'estado', 'glosa', 'err_code', 'glosa_err', 'num_atencion', 'raw'}
         """
-        if not self.auth_token:
+        if not self.is_authenticated():
             raise SiiAuthenticationError("No hay token de autenticación. Debe autenticarse primero.")
-
-        soap_body = f"""<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
-    <soapenv:Header>
-        <wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
-            <wsse:UsernameToken>
-                <wsse:Username>{rut_sender}</wsse:Username>
-                <wsse:Password>{self.auth_token}</wsse:Password>
-            </wsse:UsernameToken>
-        </wsse:Security>
-    </soapenv:Header>
-    <soapenv:Body>
-        <queryEstDte xmlns="http://DefaultNamespace">
-            <rutConsultante>{rut_sender}</rutConsultante>
-            <rutCompany>{rut_company}</rutCompany>
-            <rutEmisor>{rut_sender}</rutEmisor>
-            <tipoDte>{document_type}</tipoDte>
-            <folioDte>{folio}</folioDte>
-        </queryEstDte>
-    </soapenv:Body>
-</soapenv:Envelope>"""
-
+        if not fecha_emision or monto is None or not rut_receptor:
+            raise SiiValidationError(
+                "Para consultar el estado de un DTE el SII exige fecha de emisión, monto total y RUT del receptor."
+            )
         try:
-            url = self.endpoints.get_soap_url('query_estado')
-            response = self._make_soap_request(url, soap_body, 'queryEstDte')
-
-            # Parse response
-            status_data = self._parse_status_response(response)
-
-            logger.info(f"Estado consultado para documento {document_type}-{folio}")
-            return status_data
-
-        except Exception as e:
-            if isinstance(e, SiiWebServiceException):
-                raise
-            raise SiiCommunicationError(f"Error consultando estado: {str(e)}")
+            fecha_sii = datetime.strptime(fecha_emision, '%Y-%m-%d').strftime('%d%m%Y')
+        except ValueError:
+            raise SiiValidationError(
+                f"La fecha {fecha_emision} del documento no es válida, debe tener formato AAAA-MM-DD."
+            )
+        rut_u, dv_u = self._split_rut(rut_sender)
+        rut_c, dv_c = self._split_rut(rut_company)
+        rut_r, dv_r = self._split_rut(rut_receptor)
+        xml = self._call('QueryEstDte', 'getEstDte', {
+            'RutConsultante': rut_u, 'DvConsultante': dv_u,
+            'RutCompania': rut_c, 'DvCompania': dv_c,
+            'RutReceptor': rut_r, 'DvReceptor': dv_r,
+            'TipoDte': document_type, 'FolioDte': folio,
+            'FechaEmisionDte': fecha_sii, 'MontoDte': monto,
+            'Token': self.auth_token,
+        })
+        data = self._parse_respuesta(xml)
+        return {
+            'estado': data.get('ESTADO'),
+            'glosa': data.get('GLOSA_ESTADO') or data.get('GLOSA'),
+            'err_code': data.get('ERR_CODE'),
+            'glosa_err': data.get('GLOSA_ERR'),
+            'num_atencion': data.get('NUM_ATENCION'),
+            'raw': xml,
+        }
 
     def _make_soap_request(self, url: str, soap_body: str, action: str) -> str:
         """
@@ -440,89 +571,6 @@ class SoapService:
 
         # Should not reach here
         raise SiiCommunicationError("Error inesperado en petición SOAP")
-
-    def _parse_upload_response(self, response_xml: str) -> Dict[str, Any]:
-        """Parsea respuesta de envío de documento."""
-        try:
-            root = ET.fromstring(response_xml)
-
-            # Look for different possible response formats
-            result_element = (
-                root.find('.//uploadDTEReturn') or
-                root.find('.//return') or
-                root.find('.//result')
-            )
-
-            if result_element is None:
-                return {'success': False, 'message': 'Respuesta no válida del SII'}
-
-            result_text = result_element.text or ''
-
-            # Parse result (formato típico: "0 - Proceso OK")
-            if ' - ' in result_text:
-                code, message = result_text.split(' - ', 1)
-                success = code.strip() == '0'
-            else:
-                success = 'ok' in result_text.lower()
-                code = '0' if success else '1'
-                message = result_text
-
-            return {
-                'success': success,
-                'code': code,
-                'message': message,
-                'raw_response': response_xml
-            }
-
-        except ET.ParseError:
-            return {
-                'success': False,
-                'message': 'Error parseando respuesta XML del SII',
-                'raw_response': response_xml
-            }
-
-    def _parse_status_response(self, response_xml: str) -> Dict[str, Any]:
-        """Parsea respuesta de consulta de estado."""
-        try:
-            root = ET.fromstring(response_xml)
-
-            # Look for status response
-            status_element = (
-                root.find('.//queryEstDteReturn') or
-                root.find('.//return') or
-                root.find('.//status')
-            )
-
-            if status_element is None:
-                return {'status': 'unknown', 'message': 'No se pudo obtener estado'}
-
-            status_text = status_element.text or ''
-
-            # Parse status
-            status_info = {
-                'status': 'unknown',
-                'message': status_text,
-                'raw_response': response_xml
-            }
-
-            # Try to extract more detailed status information
-            if 'aceptado' in status_text.lower():
-                status_info['status'] = 'accepted'
-            elif 'rechazado' in status_text.lower():
-                status_info['status'] = 'rejected'
-            elif 'pendiente' in status_text.lower():
-                status_info['status'] = 'pending'
-            elif 'procesado' in status_text.lower():
-                status_info['status'] = 'processed'
-
-            return status_info
-
-        except ET.ParseError:
-            return {
-                'status': 'error',
-                'message': 'Error parseando respuesta XML del SII',
-                'raw_response': response_xml
-            }
 
     def ping(self) -> bool:
         """

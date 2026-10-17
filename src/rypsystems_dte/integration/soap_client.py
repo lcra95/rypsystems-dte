@@ -9,7 +9,6 @@ import xml.etree.ElementTree as ET
 from typing import Optional, Dict, Any, List
 import requests
 from datetime import datetime
-import base64
 import logging
 
 from ..sii.base import SiiAmbiente
@@ -274,22 +273,23 @@ class SoapClient:
         if not self.auth_token:
             raise SiiAuthenticationException("No hay token de autenticación válido")
 
+        if not request.envelope_xml:
+            raise SiiValidationException(
+                "Debe entregar el EnvioDTE firmado en envelope_xml (ver rypsystems_dte.dte.DocumentEnvelope)."
+            )
+
+        from ..sii.webservices.exceptions import SiiWebServiceException
+
         try:
-            # Prepare submission data
-            envelope_xml = request.envelope_xml or self._create_envelope_xml(request.documents)
+            service = self._sii_service()
+            service.auth_token = self.auth_token
+            service.token_expiry = self.token_expiry
+            try:
+                upload = service.upload_dte(request.rut_sender, request.rut_company, request.envelope_xml)
+                response_data = {'trackid': upload['track_id'], 'estado': upload['code'], 'mensaje': upload['message']}
+            except SiiWebServiceException as e:
+                response_data = {'trackid': '', 'estado': 'ERROR', 'mensaje': str(e)}
 
-            submission_body = f'''
-                <tns:uploadFile>
-                    <tns:rutSender>{request.rut_sender}</tns:rutSender>
-                    <tns:rutCompany>{request.rut_company}</tns:rutCompany>
-                    <tns:archivo>{base64.b64encode(envelope_xml.encode()).decode()}</tns:archivo>
-                    <tns:token>{self.auth_token}</tns:token>
-                </tns:uploadFile>
-            '''
-
-            response_data = self._make_soap_request('document_submission', submission_body)
-
-            # Parse submission response
             track_id = response_data.get('trackid', '')
             estado = response_data.get('estado', '')
 
@@ -375,28 +375,3 @@ class SoapClient:
                 raise
             raise SiiValidationException(f"Error en consulta de estado: {e}")
 
-    def _create_envelope_xml(self, documents: List[Dict[str, Any]]) -> str:
-        """
-        Create envelope XML for document submission.
-
-        Args:
-            documents: List of documents to include
-
-        Returns:
-            XML envelope content
-        """
-        # This would create the proper SII envelope format
-        # For now, return a basic structure
-        envelope = '<?xml version="1.0" encoding="ISO-8859-1"?>\n'
-        envelope += '<EnvioDTE>\n'
-        envelope += '  <SetDTE>\n'
-
-        for doc in documents:
-            envelope += f'    <DTE version="1.0">\n'
-            envelope += f'      <!-- Document {doc.get("document_id", "")} -->\n'
-            envelope += f'    </DTE>\n'
-
-        envelope += '  </SetDTE>\n'
-        envelope += '</EnvioDTE>\n'
-
-        return envelope
