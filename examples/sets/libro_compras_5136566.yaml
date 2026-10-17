@@ -1,0 +1,24 @@
+# SET LIBRO DE COMPRAS - NUMERO DE ATENCION: 5136566
+# Transcripción de SIISetDePruebas785325664.txt. Columnas del set: MONTO
+# EXENTO y MONTO AFECTO (neto). IVA y total se calculan.
+# Tipos: FACTURA = 30 (papel), FACTURA ELECTRONICA = 33, NOTA DE CREDITO = 60
+# (papel), FACTURA DE COMPRA ELECTRONICA = 46.
+# Los RUT de los proveedores deben ser válidos (instrucciones del SII).
+numero_atencion: 5136566
+folio_notificacion: 2
+factor_proporcionalidad_iva: 60   # "EN FACTURA CON IVA USO COMUN ... FACTOR 0.60"
+documentos:
+  # FACTURA DEL GIRO CON DERECHO A CREDITO
+  - {TpoDoc: 30, NroDoc: 234, MntNeto: 64261}
+  # FACTURA DEL GIRO CON DERECHO A CREDITO
+  - {TpoDoc: 33, NroDoc: 32, MntExe: 11249, MntNeto: 13177}
+  # FACTURA CON IVA USO COMUN
+  - {TpoDoc: 30, NroDoc: 781, MntNeto: 30303, uso_comun: true}
+  # NOTA DE CREDITO POR DESCUENTO A FACTURA 234
+  - {TpoDoc: 60, NroDoc: 451, MntNeto: 3000, TpoDocRef: 30, FolioDocRef: 234}
+  # ENTREGA GRATUITA DEL PROVEEDOR: IVA no recuperable código 4
+  - {TpoDoc: 33, NroDoc: 67, MntNeto: 12862, IVANoRec: {CodIVANoRec: 4}}
+  # COMPRA CON RETENCION TOTAL DEL IVA: impuesto 15 (retención total)
+  - {TpoDoc: 46, NroDoc: 9, MntNeto: 10996, OtrosImp: {CodImp: 15, TasaImp: 19}}
+  # NOTA DE CREDITO POR DESCUENTO FACTURA ELECTRONICA 32
+  - {TpoDoc: 60, NroDoc: 211, MntNeto: 10633, TpoDocRef: 33, FolioDocRef: 32}
