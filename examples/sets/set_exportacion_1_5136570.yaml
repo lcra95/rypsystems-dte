@@ -1,0 +1,65 @@
+# SET BASICO DOCUMENTOS DE EXPORTACION (1) - NUMERO DE ATENCION: 5136570
+# Códigos según las tablas de aduana del SII (resources/data/aduana_*.json):
+#   LIBRA EST: moneda 102 (TpoMoneda va como glosa) | SIN PAGO: FmaPagExp 21
+#   EN CONSIGNACION CON UN MINIMO A FIRME: CodModVenta 4 | CFR: CodClauVenta 2
+#   MARITIMA, FLUVIAL Y LACUSTRE: CodViaTransp 1
+#   SAN ANTONIO: puerto 906 | BARCELONA: puerto 563
+#   PAR: unidad 17 | LT: unidad 9 | ROLLOS: bulto 13 | ESPANA: país 517
+#   MIC (Manifiesto internacional): TpoDocRef 810
+# Flete y seguro van en los campos del encabezado y además como dos recargos
+# globales (instrucción (**) del set). Los documentos de exportación deben
+# enviarse en un envío separado del set (2).
+numero_atencion: 5136570
+
+encabezado_exportacion: &encabezado
+  IdDoc: {FmaPagExp: 21}
+  Receptor:
+    RUTRecep: 55555555-5
+    RznSocRecep: Importadora Iberica S.L.
+    Extranjero: {Nacionalidad: 517}
+    GiroRecep: Importacion de metales
+    DirRecep: Carrer de Mallorca 100, Barcelona
+  Transporte:
+    Aduana:
+      CodModVenta: 4
+      CodClauVenta: 2
+      TotClauVenta: 4721.08
+      CodViaTransp: 1
+      CodPtoEmbarque: 906
+      CodPtoDesemb: 563
+      CodUnidMedTara: 17
+      CodUnidPesoBruto: 9
+      CodUnidPesoNeto: 9
+      TotBultos: 89
+      TipoBultos: [{CodTpoBultos: 13, CantBultos: 89}]
+      MntFlete: 3714.77
+      MntSeguro: 2922.95
+      CodPaisRecep: 517
+      CodPaisDestin: 517
+  Totales: {TpoMoneda: LIBRA EST}
+
+casos:
+  - caso: 5136570-1
+    tipo: 110
+    encabezado: *encabezado
+    detalle:
+      - {NmbItem: CHATARRA DE ALUMINIO, QtyItem: 887, UnmdItem: LT, PrcItem: 179}
+    descuentos_recargos:
+      - {TpoMov: R, GlosaDR: FLETE, TpoValor: $, ValorDR: 3714.77}
+      - {TpoMov: R, GlosaDR: SEGURO, TpoValor: $, ValorDR: 2922.95}
+    referencias_extra:
+      - {TpoDocRef: 810, FolioRef: 1, RazonRef: MIC (MANIFIESTO INTERNACIONAL)}
+
+  - caso: 5136570-2
+    tipo: 112
+    encabezado: *encabezado
+    referencia: {caso: 5136570-1, CodRef: 3, RazonRef: DEVOLUCION DE MERCADERIA}
+    # "El precio unitario del item debe ser el mismo de la factura".
+    detalle:
+      - {NmbItem: CHATARRA DE ALUMINIO, QtyItem: 296, UnmdItem: LT, PrcItem: 179}
+
+  - caso: 5136570-3
+    tipo: 111
+    encabezado: *encabezado
+    referencia: {caso: 5136570-2, CodRef: 1, RazonRef: ANULA NOTA DE CREDITO}
+    detalle: copiar

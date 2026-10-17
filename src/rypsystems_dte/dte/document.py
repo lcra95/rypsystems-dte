@@ -604,6 +604,30 @@ class FacturaCompra(BaseDocument):
         return CodigoDocumento.FACTURA_COMPRA
 
 
+class FacturaExportacion(BaseDocument):
+    """Clase que representa una factura de exportación electrónica."""
+
+    @property
+    def tipo_documento(self) -> CodigoDocumento:
+        return CodigoDocumento.FACTURA_EXPORTACION
+
+
+class NotaDebitoExportacion(BaseDocument):
+    """Clase que representa una nota de débito de exportación electrónica."""
+
+    @property
+    def tipo_documento(self) -> CodigoDocumento:
+        return CodigoDocumento.NOTA_DEBITO_EXPORTACION
+
+
+class NotaCreditoExportacion(BaseDocument):
+    """Clase que representa una nota de crédito de exportación electrónica."""
+
+    @property
+    def tipo_documento(self) -> CodigoDocumento:
+        return CodigoDocumento.NOTA_CREDITO_EXPORTACION
+
+
 # Mapping de códigos a clases de documento
 DOCUMENT_CLASSES = {
     CodigoDocumento.FACTURA_AFECTA: FacturaAfecta,
@@ -614,4 +638,7 @@ DOCUMENT_CLASSES = {
     CodigoDocumento.NOTA_DEBITO: NotaDebito,
     CodigoDocumento.GUIA_DESPACHO: GuiaDespacho,
     CodigoDocumento.FACTURA_COMPRA: FacturaCompra,
+    CodigoDocumento.FACTURA_EXPORTACION: FacturaExportacion,
+    CodigoDocumento.NOTA_DEBITO_EXPORTACION: NotaDebitoExportacion,
+    CodigoDocumento.NOTA_CREDITO_EXPORTACION: NotaCreditoExportacion,
 }

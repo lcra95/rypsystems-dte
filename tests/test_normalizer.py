@@ -29,7 +29,7 @@ from rypsystems_dte.xml.schema import schema_errors
 
 FIXTURES = Path(__file__).resolve().parents[2] / 'libredte-php-original' / 'tests' / 'fixtures' / 'yaml' / 'documentos_ok'
 CASOS = sorted(FIXTURES.glob('*/*.yaml')) if FIXTURES.is_dir() else []
-NO_SOPORTADOS = (43, 110, 111, 112)
+NO_SOPORTADOS = (43,)
 
 
 class TestSemanticaPhp:
@@ -118,7 +118,7 @@ class TestNormalizador:
 
     def test_tipo_no_soportado(self):
         with pytest.raises(NormalizerError, match='aún no está soportada'):
-            DocumentNormalizer().normalize(self.datos(), 110)
+            DocumentNormalizer().normalize(self.datos(), 43)
 
     def test_sanitize(self):
         datos = DocumentNormalizer().normalize(self.datos())

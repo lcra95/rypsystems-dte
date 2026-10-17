@@ -45,7 +45,8 @@ from rypsystems_dte.sii.webservices.soap_service import SoapService  # noqa: E40
 from rypsystems_dte.xml.schema import schema_errors  # noqa: E402
 
 NOMBRES = {33: 'Factura', 34: 'Factura exenta', 46: 'Factura compra', 52: 'Guía despacho',
-           56: 'Nota débito', 61: 'Nota crédito'}
+           56: 'Nota débito', 61: 'Nota crédito', 110: 'Factura export.', 111: 'ND export.',
+           112: 'NC export.'}
 
 
 def fail(message: str) -> None:
@@ -56,6 +57,8 @@ def fail(message: str) -> None:
 def miles(value) -> str:
     if value in (None, False, ''):
         return '-'
+    if isinstance(value, float) and not value.is_integer():
+        return f'{value:,.2f}'.replace(',', '_').replace('.', ',').replace('_', '.')
     return f'{int(value):,}'.replace(',', '.')
 
 
@@ -132,6 +135,8 @@ def main() -> None:
         referencias = [{
             'TpoDocRef': 'SET', 'FolioRef': folio, 'FchRef': hoy, 'RazonRef': f'CASO {caso["caso"]}',
         }]
+        # Otras referencias (DUS, AWB, MIC...) a partir de la línea 2.
+        referencias += copy.deepcopy(caso.get('referencias_extra') or [])
         texto_ref = ''
         if ref:
             original = emitidos[ref['caso']]
@@ -178,7 +183,7 @@ def main() -> None:
               f'{rut_recep:<11} {texto_ref}')
 
         emitidos[caso['caso']] = {'tipo': tipo, 'folio': folio, 'fecha': hoy, 'detalle': detalle,
-                                  'receptor': receptor}
+                                  'receptor': datos['Encabezado']['Receptor']}
         envelope.add_document(xml)
 
     envio = envelope.build()

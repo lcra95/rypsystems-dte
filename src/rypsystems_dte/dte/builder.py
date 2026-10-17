@@ -181,11 +181,16 @@ class DocumentProcessor:
 
     def _sanitize_numbers(self, datos: Dict[str, Any]) -> None:
         """Sanitiza números del documento."""
-        # Asegurar que los montos sean enteros
+        # Montos en pesos chilenos como enteros (redondeo de PHP). Los
+        # documentos en otra moneda (exportación) conservan sus decimales.
+        from .normalizer import php_round
         totales = datos.get('Encabezado', {}).get('Totales', {})
+        moneda = totales.get('TpoMoneda')
+        if moneda and moneda != 'PESO CL':
+            return
         for key in ['MntExe', 'MntNeto', 'MntTotal', 'IVA']:
             if key in totales and isinstance(totales[key], float):
-                totales[key] = round(totales[key])
+                totales[key] = int(php_round(totales[key]))
 
     def validate(self, bag: DocumentBag) -> List[str]:
         """

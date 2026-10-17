@@ -14,7 +14,7 @@ Para mantener exactamente los mismos resultados que PHP se replican sus
 semánticas: round() redondea alejándose de cero, false/null/'' suman como 0,
 empty('0') es verdadero y los valores False no generan nodos en el XML.
 
-No soportados aún: exportación (110, 111, 112) y liquidación factura (43).
+No soportado aún: liquidación factura (43).
 """
 
 import json
@@ -30,7 +30,7 @@ _RESOURCES = Path(__file__).resolve().parent.parent / 'resources' / 'data'
 
 BOLETAS = (39, 41)
 EXPORTACION = (110, 111, 112)
-NO_SOPORTADOS = (43, 110, 111, 112)
+NO_SOPORTADOS = (43,)
 
 
 class NormalizerError(ValueError):
@@ -278,7 +278,7 @@ class DocumentNormalizer:
         codigo = int(codigo)
         if codigo in NO_SOPORTADOS:
             raise NormalizerError(f'La normalización del documento tipo {codigo} aún no está soportada.')
-        if codigo not in (33, 34, 39, 41, 46, 52, 56, 61):
+        if codigo not in (33, 34, 39, 41, 46, 52, 56, 61, 110, 111, 112):
             raise NormalizerError(f'El tipo de documento {codigo} no es válido.')
         data.pop('Test', None)
         self._compat_input(data)
@@ -542,7 +542,55 @@ class DocumentNormalizer:
             self._descuentos_recargos(data, codigo)
             self._iva_mnt_total(data, codigo)
 
+        elif codigo in EXPORTACION:
+            data = array_replace_recursive({'Encabezado': {
+                'IdDoc': False, 'Emisor': False, 'Receptor': False,
+                'Transporte': {
+                    'Patente': False, 'RUTTrans': False, 'Chofer': False, 'DirDest': False, 'CmnaDest': False,
+                    'CiudadDest': False,
+                    'Aduana': {
+                        'CodModVenta': False, 'CodClauVenta': False, 'TotClauVenta': False, 'CodViaTransp': False,
+                        'NombreTransp': False, 'RUTCiaTransp': False, 'NomCiaTransp': False, 'IdAdicTransp': False,
+                        'Booking': False, 'Operador': False, 'CodPtoEmbarque': False, 'IdAdicPtoEmb': False,
+                        'CodPtoDesemb': False, 'IdAdicPtoDesemb': False, 'Tara': False, 'CodUnidMedTara': False,
+                        'PesoBruto': False, 'CodUnidPesoBruto': False, 'PesoNeto': False, 'CodUnidPesoNeto': False,
+                        'TotItems': False, 'TotBultos': False, 'TipoBultos': False, 'MntFlete': False,
+                        'MntSeguro': False, 'CodPaisRecep': False, 'CodPaisDestin': False,
+                    },
+                },
+                'Totales': {'TpoMoneda': None, 'MntExe': 0, 'MntTotal': 0},
+            }}, data)
+            self._detalle(data, codigo)
+            self._descuentos_recargos(data, codigo)
+            self._impuesto_adicional_retencion(data)
+            self._iva_mnt_total(data, codigo)
+            self._exportacion(data)
+
         return data
+
+    @staticmethod
+    def _exportacion(data: Dict[str, Any]) -> None:
+        """NormalizeExportacionTrait."""
+        encabezado = data['Encabezado']
+        aduana = encabezado['Transporte']['Aduana']
+        id_doc = encabezado['IdDoc']
+        ind_servicio = id_doc.get('IndServicio')
+        if php_empty(aduana.get('CodModVenta')) and (
+            ind_servicio is None or ind_servicio is False or php_int(ind_servicio) not in (3, 4, 5)
+        ):
+            aduana['CodModVenta'] = 1
+        encabezado['Receptor']['CmnaRecep'] = False
+        if not php_empty(id_doc.get('FmaPago')):
+            formas = {3: 21}
+            if php_int(id_doc['FmaPago']) in formas:
+                id_doc['FmaPagExp'] = formas[php_int(id_doc['FmaPago'])]
+            id_doc['FmaPago'] = False
+        if not php_empty(id_doc.get('FmaPagExp')) and php_eq(id_doc['FmaPagExp'], 21) \
+                and not php_empty(encabezado.get('OtraMoneda')):
+            encabezado['OtraMoneda'] = as_list(encabezado['OtraMoneda'])
+            for otra in encabezado['OtraMoneda']:
+                if otra.get('TpoMoneda') == 'PESO CL':
+                    otra['TpoCambio'] = 0
 
     @staticmethod
     def _guia_traslado_interno(data: Dict[str, Any]) -> None:

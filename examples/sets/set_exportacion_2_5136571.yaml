@@ -1,0 +1,88 @@
+# SET BASICO DOCUMENTOS DE EXPORTACION (2) - NUMERO DE ATENCION: 5136571
+# Códigos según las tablas de aduana del SII (resources/data/aduana_*.json):
+#   FRANCO SZ: moneda 82 | DOLAR USA: moneda 13 | ANTICIPO: FmaPagExp 32
+#   EN CONSIGNACION LIBRE: CodModVenta 3 | S/CL: CodClauVenta 6
+#   FERROVIARIO: CodViaTransp 6 | PUERTO MONTT: puerto 910 | NAPOLES: puerto 544
+#   KN: unidad 6 | PAR: unidad 17 | PLANCHAS: bulto 89 | ITALIA: país 504
+#   RESOLUCION SNA: TpoDocRef 812 | DUS: 807 | AWB: 809
+# IndServicio: 3 servicios de exportación, 4 hotelería.
+numero_atencion: 5136571
+
+receptor_italia: &receptor
+  RUTRecep: 55555555-5
+  RznSocRecep: Importazioni Napoli S.p.A.
+  Extranjero: {Nacionalidad: 504}
+  GiroRecep: Importacion y distribucion
+  DirRecep: Via Toledo 200, Napoles
+
+casos:
+  - caso: 5136571-1
+    tipo: 110
+    encabezado:
+      IdDoc: {IndServicio: 3, FmaPagExp: 32}
+      Receptor: *receptor
+      Transporte:
+        Aduana:
+          CodClauVenta: 6
+          CodViaTransp: 6
+          CodPtoEmbarque: 910
+          CodPtoDesemb: 544
+          CodPaisRecep: 504
+          CodPaisDestin: 504
+      Totales: {TpoMoneda: FRANCO SZ}
+    # "%10 RECARGO EN LA LINEA DE ITEM POR COMISIONES EN EL EXTERIOR"
+    detalle:
+      - {NmbItem: ASESORIAS Y PROYECTOS PROFESIONALES, QtyItem: 1, PrcItem: 56, RecargoPct: 10}
+    referencias_extra:
+      - {TpoDocRef: 812, FolioRef: 1, RazonRef: RESOLUCION SNA}
+
+  - caso: 5136571-2
+    tipo: 110
+    encabezado:
+      IdDoc: {FmaPagExp: 32}
+      Receptor: *receptor
+      Transporte:
+        Aduana:
+          CodModVenta: 3
+          CodClauVenta: 6
+          TotClauVenta: 3374.80
+          CodViaTransp: 6
+          CodPtoEmbarque: 910
+          CodPtoDesemb: 544
+          CodUnidMedTara: 6
+          CodUnidPesoBruto: 17
+          CodUnidPesoNeto: 17
+          TotBultos: 66
+          TipoBultos: [{CodTpoBultos: 89, CantBultos: 66}]
+          MntFlete: 1898.21
+          MntSeguro: 1067.68
+          CodPaisRecep: 504
+          CodPaisDestin: 504
+      Totales: {TpoMoneda: FRANCO SZ}
+    # "DESCUENTO LINEA # 1: 5%"
+    detalle:
+      - {NmbItem: CAJAS CIRUELAS TIERNIZADAS SIN CAROZO CALIBRE 60/70, QtyItem: 662, UnmdItem: KN, PrcItem: 156, DescuentoPct: 5}
+      - {NmbItem: CAJAS DE PASAS DE UVA FLAME MORENA SIN SEMILLA MEDIANAS, QtyItem: 206, UnmdItem: KN, PrcItem: 99}
+    # "COMISIONES EN EL EXTRANJERO (RECARGOS GLOBALES): 11% DEL TOTAL DE LA
+    # CLAUSULA" = 11% de 3374.80 = 371.23; más flete y seguro como recargos.
+    descuentos_recargos:
+      - {TpoMov: R, GlosaDR: COMISIONES EN EL EXTRANJERO, TpoValor: $, ValorDR: 371.23}
+      - {TpoMov: R, GlosaDR: FLETE, TpoValor: $, ValorDR: 1898.21}
+      - {TpoMov: R, GlosaDR: SEGURO, TpoValor: $, ValorDR: 1067.68}
+    referencias_extra:
+      - {TpoDocRef: 807, FolioRef: 1, RazonRef: DUS}
+      - {TpoDocRef: 809, FolioRef: 1, RazonRef: AWB}
+
+  - caso: 5136571-3
+    tipo: 110
+    encabezado:
+      IdDoc: {IndServicio: 4}
+      Receptor:
+        RUTRecep: 55555555-5
+        RznSocRecep: Turista Italiano
+        Extranjero: {Nacionalidad: 504}
+        GiroRecep: Particular
+        DirRecep: Via del Corso 10, Roma
+      Totales: {TpoMoneda: DOLAR USA}
+    detalle:
+      - {NmbItem: ALOJAMIENTO HABITACIONES, QtyItem: 1, PrcItem: 169}
