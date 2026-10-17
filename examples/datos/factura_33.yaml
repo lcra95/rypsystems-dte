@@ -1,0 +1,31 @@
+# Factura electrónica (33) con todos los datos calculados y en el orden del
+# esquema DTE_v10.xsd. Reemplace los datos del Emisor por los de su empresa
+# (deben coincidir con los registrados en el SII). TipoDTE, Folio y FchEmis se
+# completan desde el CAF y la fecha actual si no se indican.
+Encabezado:
+  IdDoc:
+    TipoDTE: 33
+  Emisor:
+    RUTEmisor: 76192083-9
+    RznSoc: SASCO SpA
+    GiroEmis: Tecnologia, informatica y telecomunicaciones
+    Acteco: 726000
+    DirOrigen: Santa Cruz
+    CmnaOrigen: Santa Cruz
+  Receptor:
+    RUTRecep: 60803000-K
+    RznSocRecep: Servicio de Impuestos Internos
+    GiroRecep: Gobierno
+    DirRecep: Santiago
+    CmnaRecep: Santiago
+  Totales:
+    MntNeto: 31500
+    TasaIVA: 19
+    IVA: 5985
+    MntTotal: 37485
+Detalle:
+  - NroLinDet: 1
+    NmbItem: Conectores RJ45
+    QtyItem: 450
+    PrcItem: 70
+    MontoItem: 31500

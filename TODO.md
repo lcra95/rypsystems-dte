@@ -1,24 +1,29 @@
 # 📋 LibreDTE Translation Project - TODO List
 
-## 🔍 **Current Status Analysis**
+## 🔍 **Estado actual (revisado 2026-10-17)**
 
-**Translation Coverage**: Core Functionality ~90% | Advanced Features ~50% | Production Readiness ~75%
+La revisión de octubre de 2026 encontró que la firma, el timbraje, el sobre de
+envío y la comunicación con el SII estaban simulados (marcaban el documento
+como firmado sin firmar). Se reimplementaron siguiendo LibreDTE PHP y se
+verificaron contra artefactos reales del SII:
 
-### ✅ **COMPLETED MODULES** (Production Ready)
-- [x] **SII Base Utilities** - RUT validation, contributors, environments
-- [x] **XML Handler** - Document processing, canonicalization
-- [x] **PDF417 Generator** - Barcode generation for TED
-- [x] **DTE Core** - Document creation, factory patterns, validation
-- [x] **Exchange Foundation** - Basic document interchange, envelopes, bags
-- [x] **Firma Digital (TED)** - Electronic stamp generation
-- [x] **Pydantic V2 Migration** - All modules updated to latest validation
-- [x] **Integration Component (SII Communication)** - Complete SOAP/REST client implementation, document submission, status queries, authentication methods
-- [x] **Document Workers System** - Critical document processing pipeline including validation, sanitization, normalization, and rendering workers
-- [x] **SII Web Services Integration** - Complete SOAP/REST client implementation for real SII communication including document submission, status verification, authentication methods, protocol fallback, rate limiting, and monitoring capabilities
-- [x] **Digital Signature Validation** - Comprehensive certificate-based digital signature validation including certificate chain validation, timestamp verification, signature integrity checks, SII certificate authority validation, XML-DSIG support, and long-term preservation validation
-- [x] **Advanced Document Validation Rules** - Comprehensive business logic validation beyond schema validation including SII business rules, tax calculation validation, cross-field validation, and document type specific rules
-- [x] **Comprehensive Error Handling and Logging** - Complete enterprise-grade logging and error handling system including structured JSON logging with context, automatic error classification and recovery, performance monitoring and metrics collection, debug information collection with tracing, and thread-safe context management
-- [x] **Configuration Management System** - Complete flexible configuration system for different environments including environment-specific settings (development, testing, certification, production), SII endpoint configuration with automatic environment detection, certificate management with validation and auto-discovery, feature flags with rollout strategies and A/B testing support, and comprehensive validation framework with custom rules
+### ✅ **Implementado y verificado**
+- [x] **Certificado digital** (`firma/digital_certificate.py`): .pfx/.p12 (incluido cifrado legado RC2) y PEM. Probado con certificado real.
+- [x] **Firma XML-DSig** (`firma/xml_signer.py`): formato SII, verificación independiente con xmllint + openssl. Corrige un bug de C14N de lxml/libxml2 con namespace por defecto.
+- [x] **CAF** (`identifier/caf.py`): carga, vigencia, validación de la firma del SII (100.cer/300.cer) y CAF falsos para pruebas.
+- [x] **Timbraje TED** (`firma/ted.py`): DD firmado con la clave del CAF. El TED del ejemplo oficial del SII se verifica correctamente.
+- [x] **DTE timbrado y firmado** (`dte/builder.py`, `xml/encoder.py`): XML ISO-8859-1 que cumple `DTE_v10.xsd`.
+- [x] **EnvioDTE** (`dte/envelope.py`): carátula y firma del SetDTE; cumple `EnvioDTE_v10.xsd`.
+- [x] **Validación XSD** (`xml/schema.py`) con los esquemas oficiales.
+- [x] **Autenticación SII** (`sii/webservices/soap_service.py`): semilla → getToken firmado → token. Probado en vivo en maullin.
+- [x] **Envío y estados**: upload a `/cgi_dte/UPL/DTEUpload`, QueryEstUp y QueryEstDte (probados con respuestas en formato real; envío en vivo pendiente de CAF real).
+- [x] **Script de certificación**: `examples/emitir_certificacion.py`.
+
+### ⚠️ **Limitaciones conocidas**
+- **Normalizador**: el de Python es básico. No calcula neto/IVA/totales, montos por ítem, descuentos, fecha por defecto, etc. Hoy los datos deben entregarse completos y en el orden del esquema. Ninguno de los 43 casos YAML no-boleta de LibreDTE PHP se puede emitir aún solo con datos mínimos. **Siguiente tarea prioritaria.**
+- **Boletas** (39/41): no se envían por DTEUpload sino por la API REST de boletas del SII; no implementado.
+- **`sii/webservices/rest_service.py` y `document_sender.py`**: el servicio REST con api_key no corresponde a una API real del SII, y `DocumentSender` envía DTE sueltos (el SII exige EnvioDTE). Usar `SoapService` + `DocumentEnvelope`.
+- **Tests**: 63 tests heredados fallan (logging, config, workers, webservices) desde antes de esta revisión.
 
 ---
 
@@ -138,7 +143,7 @@
 
 ### **📚 SPECIALIZED (Domain-Specific Features)**
 
-#### **10. Identifier Component**
+#### **10. Identifier Component** (✅ CAF implementado en `identifier/caf.py`)
 **Priority**: LOW
 **Status**: Basic implementation only
 **PHP Reference**: `/src/Package/Billing/Component/Identifier/`
