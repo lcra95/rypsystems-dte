@@ -18,13 +18,14 @@ Ejemplo:
     # Revisados los montos, enviar al SII y consultar el estado:
     ... --enviar --consultar
 
-Por defecto se usa el primer folio de cada CAF. Si un envío anterior fue
-aceptado por el SII sus folios ya no se pueden reutilizar: indique el primer
-folio a usar por tipo con --folio 33=5 --folio 61=3.
+Los folios usados se registran en <salida>/folios_<RUT>.json después de cada
+envío, y por defecto se usa el siguiente folio libre de cada tipo. Para
+forzar el primer folio de un tipo use --folio 33=5.
 """
 
 import argparse
 import copy
+import json
 import sys
 import time
 from datetime import datetime
@@ -81,10 +82,14 @@ def main() -> None:
     if not certificate.is_active():
         fail(f'El certificado de {certificate.get_id()} no está vigente.')
 
-    # CAF y folios por tipo de documento.
+    # CAF y folios por tipo de documento. El registro local guarda el último
+    # folio enviado al SII por tipo, para no repetir folios ya usados.
     tipos = sorted({c['tipo'] for c in set_data['casos']})
     cafs, folios = {}, {}
     inicio = {int(k): int(v) for k, v in (f.split('=') for f in args.folio)}
+    registro_path = args.salida / f'folios_{empresa["emisor"]["RUTEmisor"]}.json'
+    registro = {int(k): int(v) for k, v in json.loads(registro_path.read_text()).items()} \
+        if registro_path.is_file() else {}
     for tipo in tipos:
         path = (empresa.get('caf') or {}).get(tipo)
         if not path or not Path(path).expanduser().is_file():
@@ -97,15 +102,20 @@ def main() -> None:
         if caf.es_falso():
             print(f'AVISO: el CAF del tipo {tipo} es falso (IDK 666); no se podrá enviar al SII.')
         cafs[tipo] = caf
-        folios[tipo] = inicio.get(tipo, caf.get_folio_desde())
+        folios[tipo] = inicio.get(tipo, max(caf.get_folio_desde(), registro.get(tipo, 0) + 1))
 
     hoy = datetime.now().strftime('%Y-%m-%d')
     emitidos = {}  # caso -> datos del documento emitido
+    # "Utilice RUT distintos para las distintas facturas": los documentos
+    # originales rotan entre los receptores; las notas usan el del referenciado.
+    receptores = empresa.get('receptores') or [empresa['receptor']]
+    siguiente_receptor = 0
     envelope = DocumentEnvelope(certificate, empresa['fecha_resolucion'], empresa.get('numero_resolucion', 0))
 
     print(f'Set {set_data["numero_atencion"]} - emisor {empresa["emisor"]["RUTEmisor"]}, '
           f'envía {certificate.get_id()} {certificate.get_name()}\n')
-    print(f'{"Caso":<12} {"Documento":<15} {"Folio":>6} {"Neto":>12} {"Exento":>10} {"IVA":>11} {"Total":>12}  Referencia')
+    print(f'{"Caso":<12} {"Documento":<15} {"Folio":>6} {"Neto":>12} {"Exento":>10} {"IVA":>11} {"Total":>12}  '
+          f'{"Receptor":<11} Referencia')
 
     for caso in set_data['casos']:
         tipo = caso['tipo']
@@ -125,17 +135,24 @@ def main() -> None:
         texto_ref = ''
         if ref:
             original = emitidos[ref['caso']]
+            receptor = dict(original['receptor'])
+        else:
+            receptor = dict(receptores[siguiente_receptor % len(receptores)])
+            siguiente_receptor += 1
+        if ref:
             referencias.append({
                 'TpoDocRef': original['tipo'], 'FolioRef': original['folio'], 'FchRef': original['fecha'],
                 'CodRef': ref['CodRef'], 'RazonRef': ref['RazonRef'],
             })
             texto_ref = f'{NOMBRES[original["tipo"]]} {original["folio"]} (CodRef {ref["CodRef"]})'
 
+        encabezado = copy.deepcopy(caso.get('encabezado') or {})
         datos = {
             'Encabezado': {
-                'IdDoc': {'TipoDTE': tipo, 'Folio': folio, 'FchEmis': hoy},
+                'IdDoc': {'TipoDTE': tipo, 'Folio': folio, 'FchEmis': hoy, **encabezado.pop('IdDoc', {})},
                 'Emisor': dict(empresa['emisor']),
-                'Receptor': dict(empresa['receptor']),
+                'Receptor': receptor,
+                **encabezado,
             },
             'Detalle': copy.deepcopy(detalle),
             'DscRcgGlobal': copy.deepcopy(caso.get('descuentos_recargos') or False),
@@ -155,10 +172,13 @@ def main() -> None:
             fail(f'Caso {caso["caso"]}: timbre o firma inválidos.')
 
         totales = bag.get_datos()['Encabezado']['Totales']
+        rut_recep = bag.get_datos()['Encabezado']['Receptor'].get('RUTRecep')
         print(f'{caso["caso"]:<12} {NOMBRES[tipo]:<15} {folio:>6} {miles(totales.get("MntNeto")):>12} '
-              f'{miles(totales.get("MntExe")):>10} {miles(totales.get("IVA")):>11} {miles(totales.get("MntTotal")):>12}  {texto_ref}')
+              f'{miles(totales.get("MntExe")):>10} {miles(totales.get("IVA")):>11} {miles(totales.get("MntTotal")):>12}  '
+              f'{rut_recep:<11} {texto_ref}')
 
-        emitidos[caso['caso']] = {'tipo': tipo, 'folio': folio, 'fecha': hoy, 'detalle': detalle}
+        emitidos[caso['caso']] = {'tipo': tipo, 'folio': folio, 'fecha': hoy, 'detalle': detalle,
+                                  'receptor': receptor}
         envelope.add_document(xml)
 
     envio = envelope.build()
@@ -187,6 +207,11 @@ def main() -> None:
     service.authenticate(certificate)
     upload = service.upload_dte(certificate.get_id(), empresa['emisor']['RUTEmisor'], envio)
     track_id = upload['track_id']
+    # Los folios enviados se consideran usados (aunque el envío se rechace se
+    # prefiere no reutilizarlos).
+    for tipo, siguiente in folios.items():
+        registro[tipo] = max(registro.get(tipo, 0), siguiente - 1)
+    registro_path.write_text(json.dumps({str(k): v for k, v in sorted(registro.items())}, indent=1))
     (args.salida / f'{nombre}_trackid.txt').write_text(f'{track_id}\n')
     print(f'\nEnvioDTE recibido por el SII. Track ID: {track_id}')
 

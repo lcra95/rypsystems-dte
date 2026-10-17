@@ -1,0 +1,35 @@
+# SET GUIA DE DESPACHO - NUMERO DE ATENCION: 5136567
+# "Se debe señalar el tipo de traslado en todos los documentos de Guía de
+# Despacho Electrónica" y en traslado interno "los datos del receptor deben
+# coincidir con los del emisor" (el normalizador lo hace con IndTraslado 5).
+# IndTraslado: 1 operación constituye venta, 5 traslado interno.
+# TipoDespacho: 1 por cuenta del receptor, 2 emisor a instalaciones del cliente.
+numero_atencion: 5136567
+casos:
+  - caso: 5136567-1
+    tipo: 52
+    # MOTIVO: TRASLADO DE MATERIALES ENTRE BODEGAS DE LA EMPRESA
+    encabezado:
+      IdDoc: {IndTraslado: 5}
+    detalle:
+      - {NmbItem: ITEM 1, QtyItem: 75}
+      - {NmbItem: ITEM 2, QtyItem: 113}
+      - {NmbItem: ITEM 3, QtyItem: 75}
+
+  - caso: 5136567-2
+    tipo: 52
+    # MOTIVO: VENTA - TRASLADO POR: EMISOR DEL DOCUMENTO AL LOCAL DEL CLIENTE
+    encabezado:
+      IdDoc: {TipoDespacho: 2, IndTraslado: 1}
+    detalle:
+      - {NmbItem: ITEM 1, QtyItem: 308, PrcItem: 6388}
+      - {NmbItem: ITEM 2, QtyItem: 594, PrcItem: 1530}
+
+  - caso: 5136567-3
+    tipo: 52
+    # MOTIVO: VENTA - TRASLADO POR: CLIENTE
+    encabezado:
+      IdDoc: {TipoDespacho: 1, IndTraslado: 1}
+    detalle:
+      - {NmbItem: ITEM 1, QtyItem: 157, PrcItem: 1836}
+      - {NmbItem: ITEM 2, QtyItem: 370, PrcItem: 5001}

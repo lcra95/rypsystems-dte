@@ -1,0 +1,53 @@
+# SET FACTURA EXENTA - NUMERO DE ATENCION: 5136569
+# "No se debe señalar el monto IVA 19% en los documentos de Factura No Afecta o
+# Exenta Electrónica (sólo monto Exento y monto Total)". Todos los ítems son
+# exentos (IndExe 1), también en las notas sobre facturas exentas.
+# Notas por diferencia de precio: "la diferencia se debe aplicar a todas las
+# unidades del ítem respectivo".
+numero_atencion: 5136569
+casos:
+  - caso: 5136569-1
+    tipo: 34
+    detalle:
+      - {NmbItem: HORAS PROGRAMADOR, QtyItem: 11, UnmdItem: Hora, PrcItem: 6654, IndExe: 1}
+
+  - caso: 5136569-2
+    tipo: 61
+    referencia: {caso: 5136569-1, CodRef: 3, RazonRef: MODIFICA MONTO}
+    detalle:
+      - {NmbItem: HORAS PROGRAMADOR, QtyItem: 11, UnmdItem: Hora, PrcItem: 832, IndExe: 1}
+
+  - caso: 5136569-3
+    tipo: 34
+    detalle:
+      - {NmbItem: SERV CONSULTORIA FACT ELECTRONICA, QtyItem: 1, PrcItem: 346661, IndExe: 1}
+      - {NmbItem: SERV CONSULTORIA GUIA DESPACHO ELECT, QtyItem: 1, PrcItem: 257002, IndExe: 1}
+
+  - caso: 5136569-4
+    tipo: 61
+    referencia: {caso: 5136569-3, CodRef: 2, RazonRef: CORRIGE GIRO}
+    detalle:
+      - {NmbItem: CORRIGE GIRO, QtyItem: 1, PrcItem: false, IndExe: 1}
+
+  - caso: 5136569-5
+    tipo: 56
+    referencia: {caso: 5136569-4, CodRef: 1, RazonRef: ANULA NOTA DE CREDITO ELECTRONICA}
+    detalle: copiar
+
+  - caso: 5136569-6
+    tipo: 34
+    detalle:
+      - {NmbItem: CAPACITACION USO CIGUEÑALES, QtyItem: 1, PrcItem: 344535, IndExe: 1}
+      - {NmbItem: "CAPACITACION USO PLC's CNC", QtyItem: 1, PrcItem: 234423, IndExe: 1}
+
+  - caso: 5136569-7
+    tipo: 61
+    referencia: {caso: 5136569-6, CodRef: 3, RazonRef: MODIFICA MONTO}
+    detalle:
+      - {NmbItem: CAPACITACION USO CIGUEÑALES, QtyItem: 1, PrcItem: 172268, IndExe: 1}
+
+  - caso: 5136569-8
+    tipo: 56
+    referencia: {caso: 5136569-6, CodRef: 3, RazonRef: MODIFICA MONTO}
+    detalle:
+      - {NmbItem: "CAPACITACION USO PLC's CNC", QtyItem: 1, PrcItem: 46885, IndExe: 1}

@@ -1,0 +1,24 @@
+# SET BASICO CASO GENERAL DE EMISOR DE FACTURA DE COMPRA - NUMERO DE ATENCION: 5136573
+# El caso general de factura de compra retiene el total del IVA al vendedor:
+# código de impuesto 15 (IVA retenido total) en cada ítem. Las notas de
+# crédito y débito asociadas también llevan la retención.
+numero_atencion: 5136573
+casos:
+  - caso: 5136573-1
+    tipo: 46
+    detalle:
+      - {NmbItem: Producto 1, QtyItem: 351, PrcItem: 3117, CodImpAdic: 15}
+      - {NmbItem: Producto 2, QtyItem: 23, PrcItem: 1586, CodImpAdic: 15}
+
+  - caso: 5136573-2
+    tipo: 61
+    referencia: {caso: 5136573-1, CodRef: 3, RazonRef: DEVOLUCION DE MERCADERIA ITEMS 1 Y 2}
+    # "Los precios unitarios de los ítems deben ser los mismos de la factura".
+    detalle:
+      - {NmbItem: Producto 1, QtyItem: 117, PrcItem: 3117, CodImpAdic: 15}
+      - {NmbItem: Producto 2, QtyItem: 8, PrcItem: 1586, CodImpAdic: 15}
+
+  - caso: 5136573-3
+    tipo: 56
+    referencia: {caso: 5136573-2, CodRef: 1, RazonRef: ANULA NOTA DE CREDITO ELECTRONICA}
+    detalle: copiar
