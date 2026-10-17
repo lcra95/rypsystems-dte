@@ -190,4 +190,4 @@ class DocumentEnvelope:
             raise EnvelopeError('No fue posible ubicar los documentos dentro del sobre.')
         xml = base.replace(b'<DTE/>', b'\n'.join(self._documents))
 
-        return XmlSigner().sign_xml(xml, certificate, SET_ID)
+        return XmlSigner().sign_xml(xml, certificate, SET_ID, xmlns_xsi=True)

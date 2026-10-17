@@ -431,9 +431,12 @@ class DTEBuilder:
             documento.update(bag.get_timbre())
         if timestamp_firma:
             documento['TmstFirma'] = timestamp_firma
+        # Sin xmlns, igual que LibreDTE clásico y el ejemplo oficial del SII: el
+        # SII valida el digest del Documento sin namespaces. Dentro del
+        # EnvioDTE el DTE hereda el namespace del sobre.
         return {
             'DTE': {
-                '@attributes': {'version': '1.0', 'xmlns': SII_DTE_NAMESPACE},
+                '@attributes': {'version': '1.0'},
                 tag_xml_documento(bag.get_codigo()): documento,
             }
         }

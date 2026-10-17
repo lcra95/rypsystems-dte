@@ -84,13 +84,14 @@ class TestEmisionDte:
 
         assert xml.startswith(b'<?xml version="1.0" encoding="ISO-8859-1"?>\n')
         root = etree.fromstring(xml)
-        assert root.tag == f'{SII}DTE'
-        documento_node = root.find(f'{SII}Documento')
+        # Sin xmlns (como LibreDTE clásico y el ejemplo oficial del SII).
+        assert root.tag == 'DTE'
+        documento_node = root.find('Documento')
         assert documento_node.get('ID') == 'LibreDTE_76192083-9_T033F000000001'
 
         # TED y TmstFirma al final del Documento, firma al final del DTE.
         assert [etree.QName(c).localname for c in documento_node][-2:] == ['TED', 'TmstFirma']
-        assert documento_node.findtext(f'{SII}TmstFirma') == TIMESTAMP
+        assert documento_node.findtext('TmstFirma') == TIMESTAMP
         assert etree.QName(root[-1]).localname == 'Signature'
 
         # Firma y timbre válidos.
@@ -112,14 +113,14 @@ class TestEmisionDte:
 
     def test_ted_contiene_caf_y_datos(self, caf, certificate):
         _, _, xml = emitir(datos_factura(7), caf, certificate)
-        dd = etree.fromstring(xml).find(f'{SII}Documento/{SII}TED/{SII}DD')
+        dd = etree.fromstring(xml).find('Documento/TED/DD')
         assert [etree.QName(c).localname for c in dd] == [
             'RE', 'TD', 'F', 'FE', 'RR', 'RSR', 'MNT', 'IT1', 'CAF', 'TSTED'
         ]
-        assert dd.findtext(f'{SII}F') == '7'
-        assert dd.findtext(f'{SII}RSR') == 'Servicio de Impuestos Internos "SII" de '  # 40 caracteres
-        assert dd.findtext(f'{SII}TSTED') == TIMESTAMP
-        assert dd.find(f'{SII}CAF/{SII}DA/{SII}IDK').text == '666'
+        assert dd.findtext('F') == '7'
+        assert dd.findtext('RSR') == 'Servicio de Impuestos Internos "SII" de '  # 40 caracteres
+        assert dd.findtext('TSTED') == TIMESTAMP
+        assert dd.find('CAF/DA/IDK').text == '666'
 
     def test_modificar_monto_invalida_firma_y_timbre(self, caf, certificate):
         _, _, xml = emitir(datos_factura(), caf, certificate)
@@ -158,9 +159,7 @@ class TestEmisionDte:
         bag, _, xml = emitir(datos_factura(), caf, certificate)
         text = xml.decode('iso-8859-1')
         documento = text[text.index('<Documento'):text.index('</Documento>') + len('</Documento>')]
-        documento = documento.replace('<Documento ', f'<Documento xmlns="{SII[1:-1]}" ', 1)
         signed_info = text[text.index('<SignedInfo'):text.index('</SignedInfo>') + len('</SignedInfo>')]
-        signed_info = signed_info.replace('<SignedInfo ', '<SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#" ', 1)
         (tmp_path / 'documento.xml').write_text(documento, encoding='utf-8')
         (tmp_path / 'signed_info.xml').write_text(signed_info, encoding='utf-8')
         (tmp_path / 'pub.pem').write_bytes(certificate.public_key.public_bytes(

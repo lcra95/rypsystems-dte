@@ -139,16 +139,23 @@ class XmlSigner:
         certificate: DigitalCertificate,
         reference: Optional[str],
         namespace: Optional[str],
+        xmlns_xsi: bool = False,
     ) -> etree._Element:
         uri = f'#{reference.lstrip("#")}' if reference else ''
-        transform = C14N_ALGORITHM if reference else ENVELOPED_ALGORITHM
         ns = namespace or XMLDSIG_NS
+        # Perfil de firma de LibreDTE clásico (en producción con el SII):
+        # SignedInfo declara su namespace explícitamente (y xmlns:xsi solo en
+        # sobres y libros) y la transformación es siempre enveloped-signature.
+        # Así la firma valida igual si el SII procesa el nodo dentro del sobre
+        # o aislado, con o sin los namespaces heredados.
+        xsi = ' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"' if xmlns_xsi else ''
+        transform = ENVELOPED_ALGORITHM
 
         # Se arma como texto para controlar exactamente las declaraciones de
         # namespace y que no haya espacios entre nodos, igual que en PHP.
         xml = (
             f'<Signature xmlns="{ns}">'
-            '<SignedInfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
+            f'<SignedInfo xmlns="{ns}"{xsi}>'
             f'<CanonicalizationMethod Algorithm="{C14N_ALGORITHM}"/>'
             f'<SignatureMethod Algorithm="{RSA_SHA1_ALGORITHM}"/>'
             f'<Reference URI="{uri}">'
@@ -181,6 +188,7 @@ class XmlSigner:
         certificate: DigitalCertificate,
         reference: Optional[str] = None,
         namespace: Optional[str] = None,
+        xmlns_xsi: bool = False,
     ) -> bytes:
         """
         Firma un XML y entrega el XML firmado.
@@ -191,6 +199,8 @@ class XmlSigner:
             reference: Valor del atributo ID del nodo a firmar. Si es None se
                 firma el documento completo (enveloped-signature).
             namespace: Namespace del nodo Signature (por defecto xmldsig)
+            xmlns_xsi: Declarar xmlns:xsi en SignedInfo. LibreDTE lo hace en las
+                firmas de sobres (SetDTE) y libros, no en DTE ni en getToken.
 
         Returns:
             XML firmado, en bytes con el mismo encoding del XML de entrada.
@@ -200,7 +210,7 @@ class XmlSigner:
         root = tree.getroot()
 
         digest = self.digest_value(tree, reference)
-        signature = self._build_signature(digest, certificate, reference, namespace)
+        signature = self._build_signature(digest, certificate, reference, namespace, xmlns_xsi)
 
         signed_info = signature[0]
         signature_value = self.sign(_c14n(signed_info), certificate.private_key)
@@ -308,7 +318,20 @@ class XmlSigner:
 
         signature_value = re.sub(r'\s+', '', signature_value_node.text)
         if not self.verify(_c14n(signed_info), signature_value, public_key):
-            result.error = 'El SignatureValue no es válido para el SignedInfo de la firma.'
+            # Como el SII y LibreDTE clásico: SignedInfo solo con los
+            # namespaces que declara (sin los heredados del sobre, p. ej. el
+            # xmlns:xsi del EnvioDTE en la firma de cada DTE).
+            original = signature.xpath('./*[local-name()="SignedInfo"]')
+            isolated = b''
+            if original:
+                node = etree.Element(original[0].tag, attrib=dict(original[0].attrib),
+                                     nsmap={None: etree.QName(original[0]).namespace})
+                node.text = original[0].text
+                for child in original[0]:
+                    node.append(deepcopy(child))
+                isolated = etree.tostring(node, method='c14n', exclusive=False, with_comments=False)
+            if not original or not self.verify(isolated, signature_value, public_key):
+                result.error = 'El SignatureValue no es válido para el SignedInfo de la firma.'
 
         return result
 

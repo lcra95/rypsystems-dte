@@ -136,7 +136,6 @@ class TestEnvioDte:
         assert base64.b64encode(hashlib.sha1(c14n).digest()).decode() == signature.findtext(f'.//{DSIG}DigestValue')
 
         signed_info = text[text.rindex('<SignedInfo'):text.rindex('</SignedInfo>') + len('</SignedInfo>')]
-        signed_info = signed_info.replace('<SignedInfo ', '<SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#" ', 1)
         (tmp_path / 'si.xml').write_text(signed_info, encoding='utf-8')
         (tmp_path / 'pub.pem').write_bytes(certificate.public_key.public_bytes(
             serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo

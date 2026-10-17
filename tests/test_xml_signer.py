@@ -62,8 +62,10 @@ class TestFirmaXml:
         assert [etree.QName(c).localname for c in signature] == ['SignedInfo', 'SignatureValue', 'KeyInfo']
         reference = signature.find(f'{DSIG}SignedInfo/{DSIG}Reference')
         assert reference.get('URI') == '#LibreDTE_T33F1'
+        # Perfil de LibreDTE clásico: enveloped-signature y SignedInfo con su xmlns.
         assert reference.find(f'{DSIG}Transforms/{DSIG}Transform').get('Algorithm') == \
-            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'
+            'http://www.w3.org/2000/09/xmldsig#enveloped-signature'
+        assert b'<SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#">' in signed
         assert len(signature.findall(f'.//{DSIG}X509Certificate')) == 1
         assert signature.findtext(f'.//{DSIG}Exponent') == 'AQAB'
 

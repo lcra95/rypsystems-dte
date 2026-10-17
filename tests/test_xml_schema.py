@@ -40,9 +40,8 @@ def test_dte_con_errores_de_esquema():
     _, _, xml = emitir(datos_factura(), caf, SelfSignedCertificate().create())
     # Orden incorrecto: Receptor después de Totales.
     root = etree.fromstring(xml)
-    ns = '{http://www.sii.cl/SiiDte}'
-    encabezado = root.find(f'{ns}Documento/{ns}Encabezado')
-    encabezado.append(encabezado.find(f'{ns}Receptor'))
+    encabezado = root.find('Documento/Encabezado')
+    encabezado.append(encabezado.find('Receptor'))
     with pytest.raises(XmlSchemaError) as e:
         validate_schema(etree.tostring(root), 'DTE_v10.xsd')
     assert 'Receptor' in str(e.value)

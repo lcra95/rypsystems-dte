@@ -36,9 +36,30 @@ def load_schema(name: str) -> etree.XMLSchema:
     return etree.XMLSchema(etree.parse(str(path)))
 
 
+SII_DTE_NAMESPACE = 'http://www.sii.cl/SiiDte'
+
+
+def _with_namespace(tree: etree._ElementTree, namespace: str) -> etree._ElementTree:
+    """
+    Copia del documento con los nodos sin namespace en el namespace indicado.
+
+    Los DTE se generan sin xmlns (como LibreDTE clásico) y lo heredan del
+    EnvioDTE; para validarlos solos contra DTE_v10.xsd se les asigna el
+    namespace del SII en una copia, sin alterar el XML firmado.
+    """
+    root = etree.fromstring(etree.tostring(tree))
+    for node in root.iter():
+        if isinstance(node.tag, str) and not node.tag.startswith('{'):
+            node.tag = f'{{{namespace}}}{node.tag}'
+    etree.cleanup_namespaces(root)
+    return etree.fromstring(etree.tostring(root)).getroottree()
+
+
 def schema_errors(xml: Union[str, bytes, etree._ElementTree], schema: str) -> List[str]:
     """Errores de validación del XML contra el esquema (lista vacía si es válido)."""
     tree = xml if isinstance(xml, etree._ElementTree) else parse(xml)
+    if schema == 'DTE_v10.xsd' and etree.QName(tree.getroot()).namespace is None:
+        tree = _with_namespace(tree, SII_DTE_NAMESPACE)
     validator = load_schema(schema)
     if validator.validate(tree):
         return []
