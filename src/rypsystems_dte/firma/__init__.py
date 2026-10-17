@@ -4,12 +4,14 @@ Manejo de firmas digitales y TED (Timbre Electrónico DTE)
 
 Componentes:
 - TED: Generación y validación de Timbre Electrónico
+- DigitalCertificate: Carga de certificados (.pfx/.p12/PEM) y firma RSA
 - Certificate: Validación de certificados digitales
 - Signature: Validación de firmas digitales XML
 - Timestamp: Validación de sellos de tiempo
 """
 
 from .ted import TEDBuilder, TEDValidator, TEDData, create_ted_from_document, generate_ted_barcode_from_data
+from .digital_certificate import DigitalCertificate, SelfSignedCertificate, CertificateError
 from .certificate import (
     CertificateValidator,
     SiiCertificateValidator,
@@ -45,6 +47,11 @@ __all__ = [
     'TEDData',
     'create_ted_from_document',
     'generate_ted_barcode_from_data',
+
+    # Certificate loading
+    'DigitalCertificate',
+    'SelfSignedCertificate',
+    'CertificateError',
 
     # Certificate validation
     'CertificateValidator',
