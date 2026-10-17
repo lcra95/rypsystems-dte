@@ -15,6 +15,8 @@ from rypsystems_dte.dte.builder import DocumentProcessor
 from rypsystems_dte.sii.constants import CodigoDocumento
 from rypsystems_dte.sii.base import Contribuyente
 from rypsystems_dte.xml.document import XmlDocument
+from rypsystems_dte.firma.ted import TEDValidator
+from rypsystems_dte.identifier import CafError, CafFaker
 
 
 class TestDocumentBag:
@@ -331,7 +333,8 @@ class TestDTEBuilder:
         }
 
         bag = DocumentBag(33, datos)
-        bag.set_caf('fake_caf_data')  # Simular CAF
+        caf = CafFaker(rut='76354771-K', tipo_documento=33, desde=1, hasta=10).create()
+        bag.set_caf(caf)
 
         documento = self.builder.build(bag)
 
@@ -340,6 +343,18 @@ class TestDTEBuilder:
         assert 'TED' in plantilla_ted
         assert plantilla_ted['TED']['DD']['F'] == 1
         assert plantilla_ted['TED']['DD']['RE'] == '76354771-K'
+
+        # El TED del XML está timbrado con la clave del CAF
+        xml = documento.get_xml_document().get_xml_bytes()
+        assert b'<FRMT algoritmo="SHA1withRSA">' in xml
+        assert TEDValidator.verify_ted_signature(xml, caf)
+        assert not TEDValidator.verify_ted_signature(xml.replace(b'<MNT>1000</MNT>', b'<MNT>1001</MNT>'), caf)
+
+    def test_build_rechaza_caf_invalido(self):
+        """Un texto que no es CAF no se acepta"""
+        bag = DocumentBag(33, {})
+        with pytest.raises(CafError):
+            bag.set_caf('fake_caf_data')
 
 
 class TestBaseDocument:

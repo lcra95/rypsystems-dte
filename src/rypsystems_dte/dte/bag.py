@@ -10,6 +10,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from ..firma.digital_certificate import DigitalCertificate
+from ..identifier.caf import Caf
 from ..sii.base import Contribuyente
 from ..sii.constants import CodigoDocumento
 
@@ -58,8 +60,10 @@ class DocumentBag:
         self._options = options or DocumentOptions()
 
         # Datos adicionales para procesamiento
-        self._caf_data: Optional[str] = None
-        self._certificate_data: Optional[str] = None
+        self._caf_data: Optional[Caf] = None
+        self._certificate_data: Optional[DigitalCertificate] = None
+        self._timbre: Optional[Dict[str, Any]] = None
+        self._xml: Optional[bytes] = None
         self._emisor: Optional[Contribuyente] = None
         self._receptor: Optional[Contribuyente] = None
 
@@ -169,41 +173,77 @@ class DocumentBag:
         """
         return self._options.validator
 
-    def get_caf(self) -> Optional[str]:
+    def get_caf(self) -> Optional[Caf]:
         """
-        Obtiene los datos del CAF (Code Authorization File).
+        Obtiene el CAF (Código de Autorización de Folios) para timbrar.
 
         Returns:
-            Datos del CAF o None
+            CAF o None
         """
         return self._caf_data
 
-    def set_caf(self, caf_data: str) -> None:
+    def set_caf(self, caf: Union[Caf, str, bytes, None]) -> None:
         """
-        Establece los datos del CAF.
+        Establece el CAF con el que se timbrará el documento.
 
         Args:
-            caf_data: Datos del CAF
-        """
-        self._caf_data = caf_data
+            caf: Instancia de Caf o el XML del CAF
 
-    def get_certificate(self) -> Optional[str]:
+        Raises:
+            CafError: Si el XML entregado no es un CAF válido
         """
-        Obtiene los datos del certificado digital.
+        if caf is None or isinstance(caf, Caf):
+            self._caf_data = caf
+        else:
+            self._caf_data = Caf(caf)
+
+    def get_certificate(self) -> Optional[DigitalCertificate]:
+        """
+        Obtiene el certificado digital con el que se firmará el documento.
 
         Returns:
-            Datos del certificado o None
+            Certificado o None
         """
         return self._certificate_data
 
-    def set_certificate(self, certificate_data: str) -> None:
+    def set_certificate(self, certificate: Optional[DigitalCertificate]) -> None:
         """
-        Establece los datos del certificado digital.
+        Establece el certificado digital con el que se firmará el documento.
 
         Args:
-            certificate_data: Datos del certificado
+            certificate: Certificado con clave privada (ver DigitalCertificate.from_file())
         """
-        self._certificate_data = certificate_data
+        if certificate is not None and not isinstance(certificate, DigitalCertificate):
+            raise TypeError(
+                'El certificado debe ser un DigitalCertificate (cárguelo con DigitalCertificate.from_file()).'
+            )
+        self._certificate_data = certificate
+
+    def get_timbre(self) -> Optional[Dict[str, Any]]:
+        """Timbre (TED) generado al timbrar el documento."""
+        return self._timbre
+
+    def set_timbre(self, timbre: Optional[Dict[str, Any]]) -> None:
+        self._timbre = timbre
+
+    def get_xml(self) -> Optional[bytes]:
+        """XML final del documento (firmado si correspondía)."""
+        return self._xml
+
+    def set_xml(self, xml: Optional[bytes]) -> None:
+        self._xml = xml
+
+    def get_id(self) -> str:
+        """
+        ID del nodo Documento, referenciado por la firma.
+
+        Formato de LibreDTE: LibreDTE_{RUT_EMISOR}_T{TIPO:03d}F{FOLIO:09d}
+        """
+        return 'LibreDTE_%s_T%03dF%09d' % (
+            self.get_rut_emisor(),
+            self.get_codigo(),
+            self.get_folio() or 0,
+        )
 
     def get_emisor(self) -> Optional[Contribuyente]:
         """

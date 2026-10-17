@@ -10,7 +10,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 from ..xml.document import XmlDocument, DocumentBuilder as XmlDocumentBuilder
-from ..firma.ted import TEDBuilder
+from ..xml.encoder import XmlEncoder, save_xml
+from ..firma.ted import TEDBuilder, TEDError, stamp_document_data
 from .document import BaseDocument, DOCUMENT_CLASSES
 from .bag import DocumentBag
 from ..sii.constants import CodigoDocumento
@@ -219,6 +220,22 @@ class DocumentProcessor:
         return errors
 
 
+SII_DTE_NAMESPACE = 'http://www.sii.cl/SiiDte'
+
+
+def tag_xml_documento(codigo: int) -> str:
+    """Nombre del nodo que contiene el documento dentro de DTE (TagXmlDocumento)."""
+    if codigo == 43:
+        return 'Liquidacion'
+    if codigo in (110, 111, 112):
+        return 'Exportaciones'
+    return 'Documento'
+
+
+class BuilderError(ValueError):
+    """Error al construir (timbrar o firmar) un documento."""
+
+
 class DTEBuilder:
     """
     Constructor principal de documentos DTE.
@@ -254,6 +271,9 @@ class DTEBuilder:
             errors = self.processor.validate(bag)
             if errors:
                 raise ValueError(f"Errores de validación: {errors}")
+
+        # Asegurar que TipoDTE esté establecido antes de timbrar y firmar.
+        self._ensure_tipo_dte(bag)
 
         # 2. Timbrar si hay CAF
         if bag.get_caf():
@@ -296,9 +316,23 @@ class DTEBuilder:
 
         return self._create_document_instance(xml_doc, codigo)
 
+    @staticmethod
+    def _ensure_tipo_dte(bag: DocumentBag) -> None:
+        """Asegura que TipoDTE esté establecido y sea el primer nodo de IdDoc."""
+        datos = bag.get_datos()
+        encabezado = datos.setdefault('Encabezado', {})
+        id_doc = encabezado.setdefault('IdDoc', {})
+        if 'TipoDTE' not in id_doc:
+            encabezado['IdDoc'] = {'TipoDTE': bag.get_codigo(), **id_doc}
+        else:
+            id_doc['TipoDTE'] = bag.get_codigo()
+        bag.set_datos(datos)
+
     def _create_xml_document(self, bag: DocumentBag) -> XmlDocument:
         """
         Crea el documento XML desde los datos del bag.
+
+        Si el documento fue firmado se usa el XML firmado tal cual.
 
         Args:
             bag: Contenedor con los datos
@@ -306,21 +340,11 @@ class DTEBuilder:
         Returns:
             Documento XML generado
         """
-        # Obtener datos del bag
-        datos = bag.get_datos()
+        self._ensure_tipo_dte(bag)
+        if bag.get_xml() is None:
+            bag.set_xml(save_xml(XmlEncoder().encode(self._document_data(bag))))
 
-        # Asegurar que TipoDTE esté establecido correctamente
-        if 'Encabezado' not in datos:
-            datos['Encabezado'] = {}
-        if 'IdDoc' not in datos['Encabezado']:
-            datos['Encabezado']['IdDoc'] = {}
-
-        # Establecer el tipo de documento
-        datos['Encabezado']['IdDoc']['TipoDTE'] = bag.get_codigo()
-
-        # El DocumentBuilder.create_dte_document() ya crea la estructura DTE
-        # Solo necesitamos pasar los datos del documento directamente
-        return self.xml_builder.create_dte_document(datos)
+        return XmlDocument(bag.get_xml())
 
     def _create_document_instance(self, xml_doc: XmlDocument, tipo: CodigoDocumento) -> BaseDocument:
         """
@@ -342,47 +366,83 @@ class DTEBuilder:
 
         return document_class(xml_doc)
 
+    def _timestamp(self, bag: DocumentBag) -> str:
+        """Marca de tiempo para timbre y firma: opción 'timestamp' del builder o ahora."""
+        timestamp = bag.get_builder_options().get('timestamp')
+        if not timestamp:
+            timestamp = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+            bag.get_builder_options()['timestamp'] = timestamp
+        return timestamp
+
     def _stamp(self, bag: DocumentBag) -> None:
         """
-        Timbra el documento con CAF.
+        Timbra el documento con el CAF: genera el TED con la firma (FRMT) del
+        nodo DD hecha con la clave privada del CAF.
 
-        Args:
-            bag: Contenedor del documento
+        Traducción de AbstractBuilderStrategy::stamp().
+
+        Raises:
+            BuilderError: Si el folio no está en el CAF o el CAF no está vigente
         """
         if bag.is_stamped():
             return
 
-        # TODO: Implementar timbraje real con CAF
-        # Por ahora solo marcamos como timbrado
         datos = bag.get_datos()
+        try:
+            timbre = stamp_document_data(datos, bag.get_codigo(), bag.get_caf(), self._timestamp(bag))
+        except TEDError as e:
+            raise BuilderError(str(e)) from e
 
-        # Generar plantilla TED
-        ted_template = self._generate_ted_template(bag)
-
-        # Agregar TED a los datos
-        datos['TED'] = ted_template['TED']
-
-        bag.set_datos(datos)
+        bag.set_timbre(timbre)
         bag.set_stamped(True)
+
+    def _document_data(self, bag: DocumentBag, timestamp_firma: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Estructura completa del DTE para codificar a XML.
+
+        Equivale a DocumentBag::getData() de PHP más el TmstFirma que se
+        agrega al firmar.
+        """
+        datos = {k: v for k, v in bag.get_datos().items() if k not in ('TED', 'TmstFirma')}
+        documento = {'@attributes': {'ID': bag.get_id()}, **datos}
+        if bag.get_timbre():
+            documento.update(bag.get_timbre())
+        if timestamp_firma:
+            documento['TmstFirma'] = timestamp_firma
+        return {
+            'DTE': {
+                '@attributes': {'version': '1.0', 'xmlns': SII_DTE_NAMESPACE},
+                tag_xml_documento(bag.get_codigo()): documento,
+            }
+        }
 
     def _sign(self, bag: DocumentBag) -> None:
         """
-        Firma el documento con certificado digital.
+        Firma el documento (nodo Documento) con el certificado digital.
 
-        Args:
-            bag: Contenedor del documento
+        Traducción de AbstractBuilderStrategy::sign().
+
+        Raises:
+            BuilderError: Si el certificado no está vigente
         """
         if bag.is_signed():
             return
 
-        # TODO: Implementar firma digital real
-        # Por ahora solo marcamos como firmado
-        datos = bag.get_datos()
+        from ..firma.xml_signer import XmlSigner
 
-        # Agregar timestamp de firma
-        datos['TmstFirma'] = datetime.now().isoformat()
+        certificate = bag.get_certificate()
+        timestamp = self._timestamp(bag)
 
-        bag.set_datos(datos)
+        if not certificate.is_active(timestamp):
+            raise BuilderError(
+                f'El certificado digital de {certificate.get_id()} no está vigente en el tiempo '
+                f'{datetime.fromisoformat(timestamp).strftime("%d/%m/%Y %H:%M")}, su rango de vigencia es del '
+                f'{datetime.fromisoformat(certificate.get_from()).strftime("%d/%m/%Y %H:%M")} al '
+                f'{datetime.fromisoformat(certificate.get_to()).strftime("%d/%m/%Y %H:%M")}.'
+            )
+
+        xml = save_xml(XmlEncoder().encode(self._document_data(bag, timestamp)))
+        bag.set_xml(XmlSigner().sign_xml(xml, certificate, bag.get_id()))
         bag.set_signed(True)
 
     def _generate_ted_template(self, bag: DocumentBag) -> Dict[str, Any]:

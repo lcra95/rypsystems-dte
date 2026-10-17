@@ -125,7 +125,9 @@ def c14n_encoded(
     tree = xml if isinstance(xml, etree._ElementTree) else parse(xml)
     data = fix_entities(c14n(_select(tree, xpath)).decode('utf-8'))
     encoding = (encoding or tree.docinfo.encoding or 'UTF-8').upper()
-    return data.encode(encoding, errors='xmlcharrefreplace')
+    # Igual que mb_convert_encoding(), los caracteres que no existen en el
+    # encoding de destino se reemplazan por '?'.
+    return data.encode(encoding, errors='replace')
 
 
 def c14n_encoded_flattened(

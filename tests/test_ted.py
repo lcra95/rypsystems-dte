@@ -371,21 +371,37 @@ class TestTEDValidator:
             assert TEDValidator.extract_ted_data_from_xml(invalid_xml) is None
 
     def test_verify_ted_signature_basic(self):
-        """Test verificación básica de firma TED"""
-        # XML con firma
-        xml_with_signature = """<TED>
+        """Verificación criptográfica de la firma TED con la clave del CAF"""
+        from rypsystems_dte.firma.ted import stamp_document_data
+        from rypsystems_dte.identifier import CafFaker
+        from rypsystems_dte.xml.encoder import XmlEncoder, save_xml
+
+        caf = CafFaker(rut='76192083-9', tipo_documento=33).create()
+        datos = {
+            'Encabezado': {
+                'IdDoc': {'TipoDTE': 33, 'Folio': 1, 'FchEmis': '2026-10-17'},
+                'Emisor': {'RUTEmisor': '76192083-9'},
+                'Receptor': {'RUTRecep': '66666666-6', 'RznSocRecep': 'Cliente'},
+                'Totales': {'MntTotal': 1190},
+            },
+            'Detalle': [{'NmbItem': 'Producto'}],
+        }
+        xml = save_xml(XmlEncoder().encode(stamp_document_data(datos, 33, caf)))
+
+        assert TEDValidator.verify_ted_signature(xml, caf) is True
+        assert TEDValidator.verify_ted_signature(xml.replace(b'<F>1</F>', b'<F>2</F>'), caf) is False
+
+        # Firma inventada o ausente
+        xml_with_fake_signature = """<TED>
             <DD><RE>test</RE></DD>
             <FRMT>firma_digital_aqui_muy_larga</FRMT>
         </TED>"""
+        assert TEDValidator.verify_ted_signature(xml_with_fake_signature, caf) is False
 
-        assert TEDValidator.verify_ted_signature(xml_with_signature) is True
-
-        # XML sin firma
         xml_without_signature = """<TED>
             <DD><RE>test</RE></DD>
             <FRMT></FRMT>
         </TED>"""
-
         assert TEDValidator.verify_ted_signature(xml_without_signature) is False
 
 

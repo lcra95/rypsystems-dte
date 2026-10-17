@@ -22,6 +22,10 @@ from ..xml.document import XmlDocument
 from ..pdf417.generator import TEDGenerator as PDF417TEDGenerator
 
 
+class TEDError(Exception):
+    """Error al timbrar un documento o al verificar su timbre."""
+
+
 class TEDData(BaseModel):
     """
     Datos requeridos para generar el TED (Timbre Electrónico).
@@ -385,39 +389,176 @@ class TEDValidator:
             return None
 
     @staticmethod
-    def verify_ted_signature(ted_xml: str, certificate_data: Optional[str] = None) -> bool:
+    def verify_ted_signature(ted_xml: Union[str, bytes], certificate_data: Any = None) -> bool:
         """
-        Verifica la firma digital del TED.
+        Verifica criptográficamente la firma (FRMT) del TED.
+
+        La firma se calcula con la clave privada del CAF sobre el nodo DD
+        canonicalizado, aplanado y en ISO-8859-1, sin namespace (igual que al
+        timbrar en LibreDTE PHP).
 
         Args:
-            ted_xml: XML del TED con firma
-            certificate_data: Datos del certificado (opcional)
+            ted_xml: XML del TED, o de un DTE que contenga el TED
+            certificate_data: Clave pública RSA o Caf con la que verificar. Si no
+                se entrega se usa la clave RSAPK (M, E) del CAF incluido en el TED.
 
         Returns:
-            True si la firma es válida
-
-        Note:
-            Implementación básica. En producción se requiere validación
-            criptográfica real contra certificados del SII.
+            True si la firma corresponde a los datos del DD
         """
-        try:
-            root = ET.fromstring(ted_xml)
-            frmt = root.find('FRMT')
+        return verify_ted_stamp(ted_xml, certificate_data)
 
-            if frmt is None:
-                return False
 
-            # Verificar que existe valor de firma
-            firma_value = frmt.text or ''
-            if not firma_value.strip():
-                return False
+def _ted_element(xml: Union[str, bytes]):
+    """Obtiene el nodo TED desde un XML de TED o de DTE (lxml)."""
+    from lxml import etree
+    from ..xml.canonical import parse
 
-            # TODO: Implementar validación criptográfica real
-            # Por ahora solo verificamos que existe el valor
-            return len(firma_value.strip()) > 10
+    try:
+        tree = parse(xml)
+    except etree.XMLSyntaxError:
+        return None
+    root = tree.getroot()
+    if etree.QName(root).localname == 'TED':
+        return root
+    nodes = root.xpath('//*[local-name()="TED"]')
+    return nodes[0] if nodes else None
 
-        except ET.ParseError:
+
+def _dd_to_stamp(dd_element) -> bytes:
+    """DD canonicalizado, aplanado, en ISO-8859-1 y sin namespace."""
+    from ..xml.canonical import c14n_encoded_flattened
+    from ..xml.encoder import XmlEncoder
+
+    # El nodo DD se reimporta en un TED sin namespace, igual que al timbrar.
+    tree = XmlEncoder().encode({'TED': {'@attributes': {'version': '1.0'}, 'DD': dd_element}})
+    return c14n_encoded_flattened(tree, '/TED/DD', 'ISO-8859-1')
+
+
+def verify_ted_stamp(xml: Union[str, bytes], public_key: Any = None) -> bool:
+    """Ver TEDValidator.verify_ted_signature()."""
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    from .xml_signer import XmlSigner
+
+    ted = _ted_element(xml)
+    if ted is None:
+        return False
+    dd = ted.find('{*}DD')
+    if dd is None:
+        dd = ted.find('DD')
+    frmt = ted.find('{*}FRMT')
+    if frmt is None:
+        frmt = ted.find('FRMT')
+    if dd is None or frmt is None or not (frmt.text or '').strip():
+        return False
+
+    if public_key is not None and hasattr(public_key, 'get_public_key'):
+        public_key = public_key.get_public_key()
+    if public_key is None:
+        modulus = dd.xpath('./*[local-name()="CAF"]/*[local-name()="DA"]/*[local-name()="RSAPK"]/*[local-name()="M"]')
+        exponent = dd.xpath('./*[local-name()="CAF"]/*[local-name()="DA"]/*[local-name()="RSAPK"]/*[local-name()="E"]')
+        if not modulus or not exponent:
             return False
+        try:
+            n = int.from_bytes(base64.b64decode(modulus[0].text or ''), 'big')
+            e = int.from_bytes(base64.b64decode(exponent[0].text or ''), 'big')
+            public_key = rsa.RSAPublicNumbers(e, n).public_key()
+        except ValueError:
+            return False
+
+    return XmlSigner.verify(_dd_to_stamp(dd), ''.join((frmt.text or '').split()), public_key)
+
+
+def stamp_document_data(
+    document_data: Dict[str, Any],
+    codigo: int,
+    caf: Any,
+    timestamp: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Genera el TED (timbre) de un documento con su CAF.
+
+    Traducción de AbstractBuilderStrategy::stamp() y
+    AbstractDocument::getPlantillaTED() de LibreDTE PHP.
+
+    Args:
+        document_data: Datos normalizados del documento (Encabezado, Detalle, ...)
+        codigo: Código del tipo de documento
+        caf: Instancia de rypsystems_dte.identifier.Caf
+        timestamp: Marca de tiempo del timbre (Y-m-dTH:i:s). Por defecto ahora.
+
+    Returns:
+        Diccionario {'TED': {...}} listo para agregar al nodo Documento
+
+    Raises:
+        TEDError: Si el folio no está en el rango del CAF o el CAF no está vigente
+    """
+    from ..xml.canonical import c14n_encoded_flattened
+    from ..xml.encoder import XmlEncoder
+    from .xml_signer import XmlSigner
+
+    encabezado = document_data.get('Encabezado', {})
+    id_doc = encabezado.get('IdDoc', {})
+    emisor = encabezado.get('Emisor', {})
+    receptor = encabezado.get('Receptor', {})
+    totales = encabezado.get('Totales', {})
+    detalle = document_data.get('Detalle', [])
+    if isinstance(detalle, dict):
+        detalle = [detalle]
+
+    folio = int(id_doc.get('Folio') or 0)
+    document_id = f'T{codigo}F{folio}'
+
+    if not caf.en_rango(folio):
+        raise TEDError(
+            f'El folio {folio} del documento {document_id} no está disponible en el rango del CAF {caf.get_id()}.'
+        )
+    if caf.get_tipo_documento() != codigo:
+        raise TEDError(
+            f'El CAF {caf.get_id()} es para documentos tipo {caf.get_tipo_documento()}, '
+            f'no para el documento {document_id}.'
+        )
+
+    timestamp = timestamp or datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+    if not caf.vigente(timestamp):
+        vencimiento = caf.get_fecha_vencimiento()
+        raise TEDError(
+            f'El CAF {caf.get_id()} que contiene el folio {folio} del documento {document_id} '
+            f'no está vigente, venció el día {datetime.fromisoformat(vencimiento).strftime("%d/%m/%Y")}.'
+        )
+
+    primer_item = (detalle[0].get('NmbItem') if detalle else '') or ''
+
+    ted = {
+        'TED': {
+            '@attributes': {'version': '1.0'},
+            'DD': {
+                'RE': emisor.get('RUTEmisor', ''),
+                'TD': codigo,
+                'F': folio,
+                'FE': id_doc.get('FchEmis', ''),
+                'RR': receptor.get('RUTRecep', ''),
+                'RSR': str(receptor.get('RznSocRecep', '') or '')[:40],
+                'MNT': totales.get('MntTotal', 0),
+                'IT1': str(primer_item)[:40],
+                'CAF': caf.get_autorizacion(),
+                'TSTED': timestamp,
+            },
+            'FRMT': {
+                '@attributes': {'algoritmo': 'SHA1withRSA'},
+                '@value': '',
+            },
+        }
+    }
+
+    tree = XmlEncoder().encode(ted)
+    dd_to_stamp = c14n_encoded_flattened(tree, '/TED/DD', 'ISO-8859-1')
+    try:
+        ted['TED']['FRMT']['@value'] = XmlSigner.sign(dd_to_stamp, caf.get_private_key())
+    except Exception as e:
+        raise TEDError('No fue posible timbrar los datos.') from e
+
+    return ted
 
 
 # Funciones de conveniencia

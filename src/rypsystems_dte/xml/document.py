@@ -9,9 +9,33 @@ import base64
 from typing import Any, Dict, List, Optional, Union
 from xml.etree import ElementTree as ET
 from xml.dom import minidom
+import re
 import uuid
 
 from pydantic import BaseModel, Field
+
+from .canonical import c14n_encoded_flattened, to_bytes
+
+
+def _strip_namespaces(element: ET.Element) -> ET.Element:
+    """Quita los namespaces de los tags para poder consultar con XPath simples."""
+    for node in element.iter():
+        if isinstance(node.tag, str) and node.tag.startswith('{'):
+            node.tag = node.tag.split('}', 1)[1]
+    return element
+
+
+def _local_name_xpath(xpath: str) -> str:
+    """
+    Convierte un XPath simple (//TED, /DTE/Documento/TED) en uno que ignora
+    namespaces, para consultar documentos con xmlns por defecto.
+    """
+    def step(name: str) -> str:
+        if not name or name in ('*', '.', '..') or name.startswith('@') or '(' in name or '[' in name:
+            return name
+        return f"*[local-name()='{name}']"
+    parts = re.split(r'(/+)', xpath)
+    return ''.join(p if p.startswith('/') else step(p) for p in parts)
 
 
 class XmlDocument:
@@ -23,26 +47,42 @@ class XmlDocument:
     conforme a los estándares del SII de Chile.
     """
 
-    def __init__(self, xml_content: Union[str, ET.Element] = None):
+    def __init__(self, xml_content: Union[str, bytes, ET.Element] = None):
         """
         Constructor del documento XML.
 
         Args:
-            xml_content: Contenido XML como string o Element
+            xml_content: Contenido XML como string, bytes o Element. Si se
+                entrega como string o bytes se conserva el contenido exacto
+                (necesario para no invalidar firmas al volver a serializar).
         """
+        self._raw: Optional[bytes] = None
+
         if xml_content is None:
             # Crear documento vacío
             self.root = ET.Element("root")
-        elif isinstance(xml_content, str):
-            # Parsear string XML
+        elif isinstance(xml_content, (str, bytes)):
+            raw = to_bytes(xml_content)
             try:
-                self.root = ET.fromstring(xml_content)
+                self.root = _strip_namespaces(ET.fromstring(raw))
             except ET.ParseError as e:
                 raise ValueError(f"XML inválido: {e}")
+            self._raw = raw
         elif isinstance(xml_content, ET.Element):
             self.root = xml_content
         else:
-            raise TypeError("xml_content debe ser string o ET.Element")
+            raise TypeError("xml_content debe ser string, bytes o ET.Element")
+
+    def get_xml_bytes(self) -> bytes:
+        """
+        XML del documento en bytes, en su encoding original.
+
+        Si el documento se creó desde un XML (por ejemplo, uno firmado) se
+        entrega exactamente ese contenido.
+        """
+        if self._raw is not None:
+            return self._raw
+        return self.save_xml().encode('iso-8859-1', errors='xmlcharrefreplace')
 
     def query(self, xpath: str, params: Optional[Dict[str, Any]] = None) -> Union[str, List[Dict], None]:
         """
@@ -152,6 +192,13 @@ class XmlDocument:
         Returns:
             String con el XML formateado
         """
+        # Si el documento viene de un XML se entrega tal cual, para no alterar
+        # firmas ni timbres.
+        if self._raw is not None and self._raw.lstrip().startswith(b'<?xml'):
+            match = re.search(rb'encoding\s*=\s*["\']([A-Za-z0-9._-]+)', self._raw[:200])
+            encoding = match.group(1).decode('ascii') if match else 'UTF-8'
+            return self._raw.decode(encoding).strip()
+
         # Crear declaración XML con encoding ISO-8859-1 para compatibilidad SII
         xml_str = ET.tostring(self.root, encoding='unicode', method='xml')
 
@@ -188,6 +235,12 @@ class XmlDocument:
         Returns:
             String canonicalizado o None si no se encuentra
         """
+        if self._raw is not None:
+            try:
+                return c14n_encoded_flattened(self._raw, _local_name_xpath(xpath) if xpath else None).decode('iso-8859-1')
+            except ValueError:
+                return None
+
         try:
             if xpath:
                 elements = self.root.findall('.' + xpath if xpath.startswith('//') else xpath)
@@ -197,15 +250,8 @@ class XmlDocument:
             else:
                 element = self.root
 
-            # Generar XML canonicalizado
             xml_str = ET.tostring(element, encoding='unicode', method='xml')
-
-            # Remover espacios entre tags pero preservar espacios en atributos y contenido
-            import re
-            # Solo remover espacios entre > y <
-            flattened = re.sub(r'>\s+<', '><', xml_str.strip())
-
-            return flattened
+            return c14n_encoded_flattened(xml_str.encode('utf-8'), None, 'ISO-8859-1').decode('iso-8859-1')
 
         except Exception:
             return None

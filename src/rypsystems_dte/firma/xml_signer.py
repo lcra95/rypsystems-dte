@@ -24,7 +24,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from lxml import etree
 
-from ..xml.canonical import c14n as _c14n, parse, to_bytes as _to_bytes
+from ..xml.canonical import c14n as _c14n, fix_entities, parse, to_bytes as _to_bytes
 from .digital_certificate import DigitalCertificate
 
 XMLDSIG_NS = 'http://www.w3.org/2000/09/xmldsig#'
@@ -211,7 +211,8 @@ class XmlSigner:
         # Serializar el documento original y agregar la firma como último
         # hijo del nodo raíz, sin reformatear el resto del XML.
         encoding = tree.docinfo.encoding or 'UTF-8'
-        body = etree.tostring(root, encoding=encoding, xml_declaration=False)
+        # Igual que XmlDocument::saveXml() de PHP: &apos; y &quot; en los textos.
+        body = fix_entities(etree.tostring(root, encoding='unicode')).encode(encoding, errors='xmlcharrefreplace')
         declaration = _XML_DECLARATION_RE.match(source)
         prefix = declaration.group(0).strip() + b'\n' if declaration else b''
 
