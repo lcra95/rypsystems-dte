@@ -1,0 +1,14 @@
+# SET LIBRO DE GUIAS - NUMERO DE ATENCION: 5136568
+# "Construya el libro con las guías con que generó el set guía de despacho":
+# - EL CASO 2 CORRESPONDE A UNA GUIA QUE SE FACTURO EN EL PERIODO
+# - EL CASO 3 CORRESPONDE A UNA GUIA ANULADA
+# Las guías se toman del EnvioDTE aceptado (en el orden del set: casos 1, 2, 3).
+# Anulado 2 = guía emitida y luego anulada.
+numero_atencion: 5136568
+folio_notificacion: 3   # Ventas 1 y compras 2 según instrucciones del SII; guías 3.
+casos:
+  2:
+    # Factura que facturó la guía (el set no la indica).
+    facturada: {TpoDocRef: 33, FolioDocRef: 5}
+  3:
+    anulada: true
