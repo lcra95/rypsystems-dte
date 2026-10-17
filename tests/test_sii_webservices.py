@@ -297,7 +297,9 @@ class TestSoapService:
             '<SII:RESP_HDR><TRACKID>123</TRACKID><ESTADO>EPR</ESTADO><GLOSA>Envio Procesado</GLOSA>'
             '<NUM_ATENCION>1 ( 2026/10/17 17:00:00)</NUM_ATENCION></SII:RESP_HDR>'
             '<SII:RESP_BODY><TIPO_DOCTO>33</TIPO_DOCTO><INFORMADOS>1</INFORMADOS><ACEPTADOS>1</ACEPTADOS>'
-            '<RECHAZADOS>0</RECHAZADOS><REPAROS>0</REPAROS></SII:RESP_BODY></SII:RESPUESTA>'
+            '<RECHAZADOS>0</RECHAZADOS><REPAROS>0</REPAROS>'
+            '<TIPO_DOCTO>61</TIPO_DOCTO><INFORMADOS>3</INFORMADOS><ACEPTADOS>2</ACEPTADOS>'
+            '<RECHAZADOS>1</RECHAZADOS><REPAROS>0</REPAROS></SII:RESP_BODY></SII:RESPUESTA>'
         )
         mock_post.return_value = self._sii_response('getEstUp', 'QueryEstUp', respuesta)
 
@@ -305,7 +307,11 @@ class TestSoapService:
 
         assert result['estado'] == 'EPR'
         assert result['descripcion'] == 'Envío Procesado'
-        assert result['aceptados'] == '1' and result['rechazados'] == '0'
+        # Totales de todos los tipos y detalle por tipo (formato real del SII).
+        assert result['aceptados'] == '3' and result['rechazados'] == '1'
+        assert [d['tipo_docto'] for d in result['detalle']] == ['33', '61']
+        assert result['detalle'][1] == {'tipo_docto': '61', 'informados': '3', 'aceptados': '2',
+                                        'rechazados': '1', 'reparos': '0'}
         sent = mock_post.call_args.kwargs['data'].decode('utf-8')
         assert '<Rut>76192083</Rut><Dv>9</Dv><TrackId>123</TrackId><Token>ABC123TOKEN</Token>' in sent
 

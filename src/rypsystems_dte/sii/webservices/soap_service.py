@@ -429,15 +429,28 @@ class SoapService:
         })
         data = self._parse_respuesta(xml)
         estado = data.get('ESTADO')
+        # El cuerpo trae un bloque TIPO_DOCTO/INFORMADOS/ACEPTADOS/... por tipo.
+        detalle = []
+        body = re.search(r'RESP_BODY>(.*?)</[^>]*RESP_BODY>', xml or '', re.S)
+        for bloque in re.split(r'(?=<TIPO_DOCTO>)', body.group(1) if body else ''):
+            campos = dict(re.findall(r'<([A-Z_]+)>([^<]*)</\1>', bloque))
+            if 'TIPO_DOCTO' in campos:
+                detalle.append({k.lower(): v.strip() for k, v in campos.items()})
+
+        def total(campo):
+            valores = [int(d[campo]) for d in detalle if d.get(campo, '').isdigit()]
+            return str(sum(valores)) if valores else data.get(campo.upper())
+
         return {
             'estado': estado,
             'descripcion': self.UPLOAD_STATES.get(estado or '', data.get('GLOSA')),
             'glosa': data.get('GLOSA'),
             'num_atencion': data.get('NUM_ATENCION'),
-            'informados': data.get('INFORMADOS'),
-            'aceptados': data.get('ACEPTADOS'),
-            'rechazados': data.get('RECHAZADOS'),
-            'reparos': data.get('REPAROS'),
+            'informados': total('informados'),
+            'aceptados': total('aceptados'),
+            'rechazados': total('rechazados'),
+            'reparos': total('reparos'),
+            'detalle': detalle,
             'raw': xml,
         }
 
