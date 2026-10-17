@@ -11,3 +11,6 @@ __pycache__/
 *.pass
 caf/
 secrets/
+
+# Salidas generadas (XML de envíos, track IDs)
+output/

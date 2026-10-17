@@ -156,7 +156,8 @@ def main() -> None:
             estado = service.query_upload_status(emisor['RUTEmisor'], track_id)
             print(f"  [{intento + 1}] {estado['estado']} - {estado['descripcion'] or estado['glosa']} "
                   f"(aceptados {estado['aceptados']}, rechazados {estado['rechazados']}, reparos {estado['reparos']})")
-            if estado['estado'] in ('EPR', 'RSC', 'RFR', 'RCT') or (estado['estado'] or '').startswith('-'):
+            # Estados finales: procesado, rechazos o códigos numéricos de error (p. ej. 106).
+            if estado['estado'] in ('EPR', 'RSC', 'RFR', 'RCT') or (estado['estado'] or '').lstrip('-').isdigit():
                 break
 
 
