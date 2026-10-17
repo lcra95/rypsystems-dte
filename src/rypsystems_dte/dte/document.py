@@ -596,6 +596,14 @@ class GuiaDespacho(BaseDocument):
         return CodigoDocumento.GUIA_DESPACHO
 
 
+class FacturaCompra(BaseDocument):
+    """Clase que representa una factura de compra electrónica."""
+
+    @property
+    def tipo_documento(self) -> CodigoDocumento:
+        return CodigoDocumento.FACTURA_COMPRA
+
+
 # Mapping de códigos a clases de documento
 DOCUMENT_CLASSES = {
     CodigoDocumento.FACTURA_AFECTA: FacturaAfecta,
@@ -605,4 +613,5 @@ DOCUMENT_CLASSES = {
     CodigoDocumento.NOTA_CREDITO: NotaCredito,
     CodigoDocumento.NOTA_DEBITO: NotaDebito,
     CodigoDocumento.GUIA_DESPACHO: GuiaDespacho,
+    CodigoDocumento.FACTURA_COMPRA: FacturaCompra,
 }

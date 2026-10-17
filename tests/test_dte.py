@@ -181,10 +181,11 @@ class TestDocumentProcessor:
         totales = normalized['Encabezado']['Totales']
         detalle = normalized['Detalle'][0]
 
-        assert totales['MntTotal'] == 1000  # Convertido a int
+        assert totales['MntTotal'] == 1000  # Convertido a int (como PHP)
         assert totales['IVA'] == 190
-        assert detalle['PrcItem'] == 500
+        assert detalle['PrcItem'] == 500.75  # El precio conserva sus decimales
         assert detalle['QtyItem'] == 2.0  # Cantidad como float
+        assert detalle['MontoItem'] == 1002  # round(2 * 500.75)
 
     def test_normalize_ruts(self):
         """Test normalización de RUTs"""
@@ -565,7 +566,9 @@ class TestDTEFactory:
         assert isinstance(boleta, BoletaAfecta)
         assert boleta.get_codigo() == 39
         assert boleta.get_folio() == 2001
-        assert boleta.get_monto_total() == 5950  # 5000 * 1.19
+        # En boletas el precio incluye IVA (igual que LibreDTE PHP): total 5000,
+        # neto 4202 e IVA 798.
+        assert boleta.get_monto_total() == 5000
 
     def test_create_nota_credito(self):
         """Test creación de nota de crédito"""
@@ -725,7 +728,7 @@ class TestIntegration:
 
         # Verificar cálculos
         assert factura.get_monto_total() == 1190  # 1000 * 1.19
-        assert boleta.get_monto_total() == 595    # 500 * 1.19
+        assert boleta.get_monto_total() == 500    # En boletas el precio incluye IVA
         assert nota.get_monto_total() == -119     # -100 * 1.19
 
     def test_error_handling(self):

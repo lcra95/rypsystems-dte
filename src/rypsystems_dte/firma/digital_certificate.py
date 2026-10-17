@@ -368,7 +368,10 @@ class SelfSignedCertificate:
         ])
 
     def create(self) -> DigitalCertificate:
-        now = datetime.now(timezone.utc) - timedelta(minutes=1)
+        # Vigente desde el día anterior, para que las marcas de tiempo de
+        # pruebas calculadas un poco antes de crear el certificado sean válidas.
+        now = datetime.now(timezone.utc)
+        since = now - timedelta(days=1)
         until = now + timedelta(days=self.days)
 
         issuer_key = rsa.generate_private_key(public_exponent=65537, key_size=self.key_size)
@@ -379,7 +382,7 @@ class SelfSignedCertificate:
             .issuer_name(issuer_name)
             .public_key(issuer_key.public_key())
             .serial_number(666)
-            .not_valid_before(now)
+            .not_valid_before(since)
             .not_valid_after(until)
             .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
             .sign(issuer_key, hashes.SHA256())
@@ -392,7 +395,7 @@ class SelfSignedCertificate:
             .issuer_name(issuer_name)
             .public_key(subject_key.public_key())
             .serial_number(69)
-            .not_valid_before(now)
+            .not_valid_before(since)
             .not_valid_after(until)
             .sign(issuer_key, hashes.SHA256())
         )

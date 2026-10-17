@@ -18,9 +18,10 @@ verificaron contra artefactos reales del SII:
 - [x] **Autenticación SII** (`sii/webservices/soap_service.py`): semilla → getToken firmado → token. Probado en vivo en maullin.
 - [x] **Envío y estados**: upload a `/cgi_dte/UPL/DTEUpload`, QueryEstUp y QueryEstDte (probados con respuestas en formato real; envío en vivo pendiente de CAF real).
 - [x] **Script de certificación**: `examples/emitir_certificacion.py`.
+- [x] **Normalizador** (`dte/normalizer.py`): traducción del NormalizerWorker de PHP para 33, 34, 39, 41, 46, 52, 56 y 61 (detalle, descuentos/recargos, impuestos adicionales y retenciones, IVA y totales, transporte, boletas, MntPagos, OtraMoneda). Los 35 casos YAML de LibreDTE PHP de esos tipos (no boleta) generan DTE válidos según el XSD con los mismos montos que PHP; las 7 boletas coinciden en montos.
 
 ### ⚠️ **Limitaciones conocidas**
-- **Normalizador**: el de Python es básico. No calcula neto/IVA/totales, montos por ítem, descuentos, fecha por defecto, etc. Hoy los datos deben entregarse completos y en el orden del esquema. Ninguno de los 43 casos YAML no-boleta de LibreDTE PHP se puede emitir aún solo con datos mínimos. **Siguiente tarea prioritaria.**
+- **Normalizador**: faltan exportación (110, 111, 112) y liquidación factura (43). Faltan los proveedores de datos de contribuyentes (se pueden inyectar con `emisor_provider`/`receptor_provider`) y la conversión de códigos de comuna a nombre. Igual que en PHP, los totales se calculan desde el detalle: no entregar Totales junto al Detalle.
 - **Boletas** (39/41): no se envían por DTEUpload sino por la API REST de boletas del SII; no implementado.
 - **`sii/webservices/rest_service.py` y `document_sender.py`**: el servicio REST con api_key no corresponde a una API real del SII, y `DocumentSender` envía DTE sueltos (el SII exige EnvioDTE). Usar `SoapService` + `DocumentEnvelope`.
 - **Tests**: 63 tests heredados fallan (logging, config, workers, webservices) desde antes de esta revisión.

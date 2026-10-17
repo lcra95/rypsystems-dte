@@ -1,10 +1,12 @@
-# Factura electrónica (33) con todos los datos calculados y en el orden del
-# esquema DTE_v10.xsd. Reemplace los datos del Emisor por los de su empresa
-# (deben coincidir con los registrados en el SII). TipoDTE, Folio y FchEmis se
-# completan desde el CAF y la fecha actual si no se indican.
+# Factura electrónica (33) con datos mínimos: el normalizador completa la
+# estructura y calcula montos por ítem, neto, IVA y total (igual que LibreDTE
+# PHP). Reemplace los datos del Emisor por los de su empresa (deben coincidir
+# con los registrados en el SII). TipoDTE, Folio y FchEmis se completan desde
+# el CAF y la fecha actual si no se indican.
+#
+# Importante: no entregue Totales junto al Detalle; los montos del detalle se
+# suman a los totales entregados.
 Encabezado:
-  IdDoc:
-    TipoDTE: 33
   Emisor:
     RUTEmisor: 76192083-9
     RznSoc: SASCO SpA
@@ -18,14 +20,7 @@ Encabezado:
     GiroRecep: Gobierno
     DirRecep: Santiago
     CmnaRecep: Santiago
-  Totales:
-    MntNeto: 31500
-    TasaIVA: 19
-    IVA: 5985
-    MntTotal: 37485
 Detalle:
-  - NroLinDet: 1
-    NmbItem: Conectores RJ45
+  - NmbItem: Conectores RJ45
     QtyItem: 450
     PrcItem: 70
-    MontoItem: 31500

@@ -50,9 +50,9 @@ def datos_factura(folio: int = 1) -> dict:
                 'DirRecep': 'Santiago',
                 'CmnaRecep': 'Santiago',
             },
-            'Totales': {'MntNeto': 1000, 'TasaIVA': 19, 'IVA': 190, 'MntTotal': 1190},
         },
-        'Detalle': [{'NroLinDet': 1, 'NmbItem': 'Desarrollo de software Ñandú', 'QtyItem': 1, 'PrcItem': 1000, 'MontoItem': 1000}],
+        # Neto 1000, IVA 190 y total 1190 los calcula el normalizador.
+        'Detalle': [{'NmbItem': 'Desarrollo de software Ñandú', 'QtyItem': 1, 'PrcItem': 1000}],
     }
 
 
@@ -102,6 +102,8 @@ class TestEmisionDte:
         # Los datos del documento se pueden consultar pese al namespace.
         assert documento.get_folio() == 1
         assert documento.get_rut_emisor() == '76192083-9'
+        totales = bag.get_datos()['Encabezado']['Totales']
+        assert (totales['MntNeto'], totales['IVA'], totales['MntTotal']) == (1000, 190, 1190)
 
     def test_texto_iso_8859_1(self, caf, certificate):
         _, _, xml = emitir(datos_factura(), caf, certificate)

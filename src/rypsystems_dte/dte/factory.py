@@ -225,8 +225,8 @@ class DTEFactory:
         Returns:
             Estructura de datos del documento
         """
-        # Calcular totales desde el detalle
-        totales = self._calculate_totales(detalle, tipo_dte)
+        # Los totales (neto, IVA, exento y total) los calcula el normalizador
+        # desde el detalle, igual que en LibreDTE PHP.
 
         # Estructura base
         datos = {
@@ -240,7 +240,6 @@ class DTEFactory:
                     'RUTEmisor': emisor.get_rut(),
                     'RznSoc': emisor.razon_social
                 },
-                'Totales': totales
             },
             'Detalle': detalle
         }
@@ -256,52 +255,6 @@ class DTEFactory:
         self._apply_additional_params(datos, kwargs)
 
         return datos
-
-    def _calculate_totales(self, detalle: List[Dict[str, Any]], tipo_dte: int) -> Dict[str, Any]:
-        """
-        Calcula los totales del documento desde el detalle.
-
-        Args:
-            detalle: Lista de items del detalle
-            tipo_dte: Código del tipo de documento
-
-        Returns:
-            Diccionario con los totales calculados
-        """
-        monto_neto = 0
-        monto_exento = 0
-
-        for item in detalle:
-            cantidad = float(item.get('QtyItem', 1))
-            precio = float(item.get('PrcItem', 0))
-            monto_item = int(cantidad * precio)
-
-            # Determinar si el item es afecto o exento
-            ind_exento = item.get('IndExe', 0)
-            if ind_exento:
-                monto_exento += monto_item
-            else:
-                monto_neto += monto_item
-
-        totales = {}
-
-        # Para documentos afectos, calcular IVA
-        if tipo_dte in [33, 39, 61]:  # Factura/Boleta afecta, Nota crédito
-            if monto_neto != 0:  # Puede ser negativo en notas de crédito
-                iva = round(monto_neto * 0.19)
-                totales['MntNeto'] = monto_neto
-                totales['IVA'] = iva
-                totales['MntTotal'] = monto_neto + iva
-            if monto_exento > 0:
-                totales['MntExe'] = monto_exento
-                totales['MntTotal'] = totales.get('MntTotal', 0) + monto_exento
-        else:
-            # Para documentos exentos o notas
-            totales['MntTotal'] = monto_neto + monto_exento
-            if monto_exento > 0:
-                totales['MntExe'] = monto_exento
-
-        return totales
 
     def _apply_additional_params(self, datos: Dict[str, Any], params: Dict[str, Any]) -> None:
         """

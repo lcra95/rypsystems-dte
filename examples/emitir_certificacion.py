@@ -19,9 +19,10 @@ Ejemplo:
     # Igual, pero enviando al SII y consultando el estado:
     ... --enviar --consultar
 
-Los datos del documento se entregan completos (Encabezado con IdDoc,
-Emisor, Receptor y Totales calculados, y Detalle), en el orden del esquema
-del SII. El folio y el RUT del emisor se toman del CAF si no vienen.
+Los datos del documento pueden ser mínimos (Emisor, Receptor y Detalle con
+cantidad y precio): el normalizador calcula montos, IVA y totales. El folio
+y el RUT del emisor se toman del CAF si no vienen. No entregue Totales junto
+al Detalle (los montos del detalle se sumarían a ellos).
 """
 
 import argparse

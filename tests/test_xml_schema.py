@@ -34,12 +34,15 @@ def test_dte_emitido_cumple_esquema():
 
 
 def test_dte_con_errores_de_esquema():
+    from lxml import etree
+
     caf = CafFaker(rut='76192083-9', tipo_documento=33).create()
-    datos = datos_factura()
-    # Orden incorrecto: Totales antes de Receptor.
-    enc = datos['Encabezado']
-    datos['Encabezado'] = {'IdDoc': enc['IdDoc'], 'Emisor': enc['Emisor'], 'Totales': enc['Totales'], 'Receptor': enc['Receptor']}
-    _, _, xml = emitir(datos, caf)
+    _, _, xml = emitir(datos_factura(), caf, SelfSignedCertificate().create())
+    # Orden incorrecto: Receptor después de Totales.
+    root = etree.fromstring(xml)
+    ns = '{http://www.sii.cl/SiiDte}'
+    encabezado = root.find(f'{ns}Documento/{ns}Encabezado')
+    encabezado.append(encabezado.find(f'{ns}Receptor'))
     with pytest.raises(XmlSchemaError) as e:
-        validate_schema(xml, 'DTE_v10.xsd')
+        validate_schema(etree.tostring(root), 'DTE_v10.xsd')
     assert 'Receptor' in str(e.value)

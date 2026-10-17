@@ -527,20 +527,22 @@ def stamp_document_data(
             f'no está vigente, venció el día {datetime.fromisoformat(vencimiento).strftime("%d/%m/%Y")}.'
         )
 
-    primer_item = (detalle[0].get('NmbItem') if detalle else '') or ''
+    from ..dte.normalizer import php_str
+
+    primer_item = php_str(detalle[0].get('NmbItem') if detalle else '')
 
     ted = {
         'TED': {
             '@attributes': {'version': '1.0'},
             'DD': {
-                'RE': emisor.get('RUTEmisor', ''),
+                'RE': php_str(emisor.get('RUTEmisor')),
                 'TD': codigo,
                 'F': folio,
-                'FE': id_doc.get('FchEmis', ''),
-                'RR': receptor.get('RUTRecep', ''),
-                'RSR': str(receptor.get('RznSocRecep', '') or '')[:40],
-                'MNT': totales.get('MntTotal', 0),
-                'IT1': str(primer_item)[:40],
+                'FE': php_str(id_doc.get('FchEmis')),
+                'RR': php_str(receptor.get('RUTRecep')),
+                'RSR': php_str(receptor.get('RznSocRecep'))[:40],
+                'MNT': totales.get('MntTotal') or 0,
+                'IT1': primer_item[:40],
                 'CAF': caf.get_autorizacion(),
                 'TSTED': timestamp,
             },

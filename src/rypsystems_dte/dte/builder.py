@@ -14,6 +14,7 @@ from ..xml.encoder import XmlEncoder, save_xml
 from ..firma.ted import TEDBuilder, TEDError, stamp_document_data
 from .document import BaseDocument, DOCUMENT_CLASSES
 from .bag import DocumentBag
+from .normalizer import NO_SOPORTADOS, DocumentNormalizer, NormalizerError
 from ..sii.constants import CodigoDocumento
 
 
@@ -35,12 +36,26 @@ class DocumentProcessor:
             return
 
         datos = bag.get_datos()
+        codigo = bag.get_codigo()
 
-        # Normalización básica de estructura
-        self._normalize_structure(datos)
-        self._normalize_dates(datos)
-        self._normalize_amounts(datos)
-        self._normalize_ruts(datos)
+        if codigo not in NO_SOPORTADOS:
+            # Traducción del NormalizerWorker de LibreDTE PHP: completa la
+            # estructura en el orden del esquema y calcula montos y totales.
+            datos.setdefault('Encabezado', {}).setdefault('IdDoc', {}).setdefault('TipoDTE', codigo)
+            normalizer = DocumentNormalizer(
+                emisor_provider=bag.get_normalizer_options().get('emisor_provider'),
+                receptor_provider=bag.get_normalizer_options().get('receptor_provider'),
+            )
+            try:
+                datos = normalizer.normalize(datos, codigo)
+            except NormalizerError as e:
+                raise ValueError(f"Errores de normalización: {e}") from e
+        else:
+            # Exportación y liquidación: normalización básica (pendiente de traducir).
+            self._normalize_structure(datos)
+            self._normalize_dates(datos)
+            self._normalize_amounts(datos)
+            self._normalize_ruts(datos)
 
         bag.set_datos(datos)
         bag.set_normalized(True)
@@ -136,6 +151,13 @@ class DocumentProcessor:
         # Sanitización básica
         self._sanitize_strings(datos)
         self._sanitize_numbers(datos)
+
+        # sanitizeEssentials() de LibreDTE PHP (RUT, Acteco, largos del receptor).
+        if bag.get_codigo() not in NO_SOPORTADOS:
+            try:
+                datos = DocumentNormalizer.sanitize(datos)
+            except NormalizerError as e:
+                raise ValueError(f"Errores de sanitización: {e}") from e
 
         bag.set_datos(datos)
         bag.set_sanitized(True)

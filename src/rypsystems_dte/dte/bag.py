@@ -406,12 +406,18 @@ class DocumentBag:
 
         # Validar Receptor (no obligatorio para todos los tipos)
         receptor = encabezado.get('Receptor', {})
-        if receptor and not receptor.get('RUTRecep'):
+        receptor_con_datos = isinstance(receptor, dict) and any(
+            v not in (None, False, '') for v in receptor.values()
+        )
+        if receptor_con_datos and not receptor.get('RUTRecep'):
             errors.append("RUTRecep inválido en Receptor")
 
         # Validar Totales
         totales = encabezado.get('Totales', {})
-        if totales and not totales.get('MntTotal'):
+        # MntTotal 0 es válido (p. ej. guía de traslado interno o nota que
+        # solo corrige un texto); lo que no puede es faltar.
+        mnt_total = totales.get('MntTotal') if totales else None
+        if totales and (mnt_total is None or mnt_total is False or mnt_total == ''):
             errors.append("Falta MntTotal en Totales")
 
         return errors
