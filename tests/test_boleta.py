@@ -162,3 +162,12 @@ def test_timbre_verificable_sobre_el_texto_del_xml(boletas, certificado):
                            re.findall(rb'<FRMT[^>]*>([^<]*)</FRMT>', xml)):
         texto = re.sub(rb'>\s+<', b'><', dd)
         b.get_caf().get_public_key().verify(base64.b64decode(frmt), texto, padding.PKCS1v15(), hashes.SHA1())
+
+
+def test_pdf_termico_boleta(boletas):
+    from rypsystems_dte.pdf import DtePdfTermico
+
+    con_timbre = DtePdfTermico({'fecha': '2026-10-17', 'numero': 0}).render(boletas[1].get_xml())
+    sin_timbre = DtePdfTermico({'fecha': '2026-10-17', 'numero': 0}, timbre_boletas=False).render(boletas[1].get_xml())
+    assert con_timbre.count(b'/Type /Page\n') == 1 and sin_timbre.count(b'/Type /Page\n') == 1
+    assert len(sin_timbre) < len(con_timbre)

@@ -72,3 +72,25 @@ def test_pdf417_iso_8859_1():
     datos = '<TED version="1.0"><DD><RSR>Compañía Ñandú</RSR></DD></TED>'.encode('iso-8859-1')
     leidos = zxingcpp.read_barcodes(pdf417_image(datos))
     assert leidos[0].bytes == datos
+
+
+@pytest.mark.skipif(shutil.which('pdftoppm') is None, reason='Requiere pdftoppm (poppler)')
+def test_termico_80mm(factura, tmp_path):
+    zxingcpp = pytest.importorskip('zxingcpp')
+    from PIL import Image
+    from rypsystems_dte.pdf import DtePdfTermico
+
+    contenido = DtePdfTermico(RESOLUCION).render(factura)
+    # Factura: original y copia cedible, cada una del alto de su contenido.
+    assert contenido.count(b'/Type /Page\n') == 2
+    pdf = tmp_path / 'termico.pdf'
+    pdf.write_bytes(DtePdfTermico(RESOLUCION).render(factura, cedible=False))
+    subprocess.run(['pdftoppm', '-r', '300', '-png', str(pdf), str(tmp_path / 'rollo')], check=True)
+    imagen = Image.open(next(tmp_path.glob('rollo*.png')))
+    assert round(imagen.width / 300 * 25.4) == 80
+    leidos = [r for r in zxingcpp.read_barcodes(imagen) if r.format == zxingcpp.BarcodeFormat.PDF417]
+    assert leidos and leidos[0].bytes == ted_pdf417(factura)
+    p = leidos[0].position
+    ancho = (max(p.top_right.x, p.bottom_right.x) - min(p.top_left.x, p.bottom_left.x)) / 300 * 25.4
+    alto = (max(p.bottom_left.y, p.bottom_right.y) - min(p.top_left.y, p.top_right.y)) / 300 * 25.4
+    assert 50 <= ancho <= 90 and 20 <= alto <= 40, (ancho, alto)

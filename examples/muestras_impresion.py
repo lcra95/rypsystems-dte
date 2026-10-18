@@ -21,7 +21,7 @@ from lxml import etree
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 
-from rypsystems_dte.pdf import DtePdf  # noqa: E402
+from rypsystems_dte.pdf import DtePdf, DtePdfTermico  # noqa: E402
 
 
 def ultimos_envios(directorio: Path):
@@ -41,10 +41,17 @@ def main() -> None:
     parser.add_argument('--envios', type=Path, default=ROOT / 'output' / 'certificacion')
     parser.add_argument('--salida', type=Path, default=ROOT / 'output' / 'certificacion' / 'muestras')
     parser.add_argument('--logo', type=Path)
+    parser.add_argument('--formato', choices=('carta', '80mm'), default='carta',
+                        help='Hoja carta o rollo térmico de 80 mm')
+    parser.add_argument('--sin-timbre-boletas', action='store_true',
+                        help='No imprimir el timbre en boletas (opcional desde 2026)')
     args = parser.parse_args()
 
     empresa = yaml.safe_load(args.empresa.expanduser().read_text(encoding='utf-8'))
-    pdf = DtePdf(
+    clase = DtePdfTermico if args.formato == '80mm' else DtePdf
+    opciones = {'timbre_boletas': not args.sin_timbre_boletas} if args.formato == '80mm' else {}
+    pdf = clase(
+        **opciones,
         resolucion={'fecha': str(empresa['fecha_resolucion']), 'numero': empresa.get('numero_resolucion', 0)},
         logo=str(args.logo) if args.logo else None,
     )
@@ -56,7 +63,8 @@ def main() -> None:
         for dte in dtes:
             tipo = dte.xpath('string(.//*[local-name()="IdDoc"]/*[local-name()="TipoDTE"])')
             folio = dte.xpath('string(.//*[local-name()="IdDoc"]/*[local-name()="Folio"])')
-            ruta = args.salida / f'set_{numero}_T{int(tipo):03d}F{int(folio):09d}.pdf'
+            sufijo = '_80mm' if args.formato == '80mm' else ''
+            ruta = args.salida / f'set_{numero}_T{int(tipo):03d}F{int(folio):09d}{sufijo}.pdf'
             ruta.write_bytes(pdf.render(etree.tostring(dte)))
             print(f'  {ruta}')
 
