@@ -1,0 +1,35 @@
+# SET DE PRUEBA DE BOLETA ELECTRONICA DE VENTAS Y SERVICIOS
+# Transcripción de "Set Prueba BE.txt" (SII). Precios con IVA incluido; los
+# nombres de los ítems tal cual están en el set. Cada boleta referencia su caso
+# (CodRef SET, RazonRef CASO-n).
+nombre: set_boleta
+casos:
+  - caso: CASO-1
+    tipo: 39
+    detalle:
+      - {NmbItem: Cambio de aceite, QtyItem: 1, PrcItem: 19900}
+      - {NmbItem: Alineacion y balanceo, QtyItem: 1, PrcItem: 9900}
+
+  - caso: CASO-2
+    tipo: 39
+    detalle:
+      - {NmbItem: Papel de regalo, QtyItem: 17, PrcItem: 120}
+
+  - caso: CASO-3
+    tipo: 39
+    detalle:
+      - {NmbItem: Sandwic, QtyItem: 2, PrcItem: 1500}
+      - {NmbItem: Bebida, QtyItem: 2, PrcItem: 550}
+
+  - caso: CASO-4
+    tipo: 39
+    # El ítem 1 es un servicio afecto y el ítem 2 un servicio exento.
+    detalle:
+      - {NmbItem: item afecto 1, QtyItem: 8, PrcItem: 1590}
+      - {NmbItem: item exento 2, QtyItem: 2, PrcItem: 1000, IndExe: 1}
+
+  - caso: CASO-5
+    tipo: 39
+    # Se debe informar la unidad de medida en Kg.
+    detalle:
+      - {NmbItem: Arroz, QtyItem: 5, UnmdItem: Kg, PrcItem: 700}

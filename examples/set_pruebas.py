@@ -25,6 +25,10 @@ forzar el primer folio de un tipo use --folio 33=5.
 Para la etapa de simulación (documentos que representan la operación real de
 la empresa) el YAML lleva `referencia_set: false`, y así los documentos no
 llevan la referencia SET. Cada caso puede indicar su propio `receptor`.
+
+Los sets de boletas (39 y 41) se arman en un EnvioBOLETA, con la referencia
+CodRef SET / RazonRef CASO-n y receptor 66666666-6 por defecto, y se envían por
+la API REST de boletas del SII.
 """
 
 import argparse
@@ -45,10 +49,13 @@ from rypsystems_dte.firma import DigitalCertificate, XmlSigner  # noqa: E402
 from rypsystems_dte.firma.ted import TEDValidator  # noqa: E402
 from rypsystems_dte.identifier import Caf, CafValidator  # noqa: E402
 from rypsystems_dte.sii.webservices.sii_endpoints import SiiEnvironment  # noqa: E402
+from rypsystems_dte.sii.webservices.boleta_service import BoletaService  # noqa: E402
 from rypsystems_dte.sii.webservices.soap_service import SoapService  # noqa: E402
 from rypsystems_dte.xml.schema import schema_errors  # noqa: E402
 
-NOMBRES = {33: 'Factura', 34: 'Factura exenta', 46: 'Factura compra', 52: 'Guía despacho',
+BOLETAS = (39, 41)
+RECEPTOR_BOLETA = {'RUTRecep': '66666666-6'}
+NOMBRES = {39: 'Boleta', 41: 'Boleta exenta', 33: 'Factura', 34: 'Factura exenta', 46: 'Factura compra', 52: 'Guía despacho',
            43: 'Liquidación', 56: 'Nota débito', 61: 'Nota crédito', 110: 'Factura export.', 111: 'ND export.',
            112: 'NC export.'}
 
@@ -114,6 +121,9 @@ def main() -> None:
     hoy = datetime.now().strftime('%Y-%m-%d')
     referencia_set = set_data.get('referencia_set', True)
     nombre_set = set_data.get('nombre') or f'set_{set_data["numero_atencion"]}'
+    boletas = all(t in BOLETAS for t in tipos)
+    if not boletas and any(t in BOLETAS for t in tipos):
+        fail('Un set no puede mezclar boletas con otros documentos.')
     emitidos = {}  # caso -> datos del documento emitido
     # "Utilice RUT distintos para las distintas facturas": los documentos
     # originales rotan entre los receptores; las notas usan el del referenciado.
@@ -140,7 +150,9 @@ def main() -> None:
 
         referencias = [{
             'TpoDocRef': 'SET', 'FolioRef': folio, 'FchRef': hoy, 'RazonRef': f'CASO {caso["caso"]}',
-        }] if referencia_set else []
+        }] if referencia_set and not boletas else []
+        if referencia_set and boletas:
+            referencias = [{'CodRef': 'SET', 'RazonRef': caso['caso']}]
         # Otras referencias (DUS, AWB, MIC...) a partir de la línea 2.
         referencias += copy.deepcopy(caso.get('referencias_extra') or [])
         texto_ref = ''
@@ -149,6 +161,8 @@ def main() -> None:
             receptor = dict(original['receptor'])
         elif caso.get('receptor'):
             receptor = dict(caso['receptor'])
+        elif boletas:
+            receptor = dict(RECEPTOR_BOLETA)
         else:
             receptor = dict(receptores[siguiente_receptor % len(receptores)])
             siguiente_receptor += 1
@@ -179,7 +193,8 @@ def main() -> None:
         DTEBuilder().build(bag)
         xml = bag.get_xml()
 
-        errors = schema_errors(xml, 'DTE_v10.xsd')
+        # Las boletas no son parte de DTE_v10.xsd: se validan dentro del EnvioBOLETA.
+        errors = [] if boletas else schema_errors(xml, 'DTE_v10.xsd')
         if errors:
             fail(f'Caso {caso["caso"]}: el DTE no cumple el esquema: {"; ".join(errors[:3])}')
         if not TEDValidator.verify_ted_signature(xml, cafs[tipo]) or not XmlSigner().is_valid_xml(xml):
@@ -196,9 +211,9 @@ def main() -> None:
         envelope.add_document(xml)
 
     envio = envelope.build()
-    errors = schema_errors(envio, 'EnvioDTE_v10.xsd')
+    errors = schema_errors(envio, envelope.get_schema())
     if errors:
-        fail(f'El EnvioDTE no cumple el esquema: {"; ".join(errors[:3])}')
+        fail(f'El {envelope.get_tag()} no cumple el esquema: {"; ".join(errors[:3])}')
     results = XmlSigner().validate_xml(envio)
     if not all(r.is_valid for r in results):
         fail('Firmas inválidas en el EnvioDTE: ' + ', '.join(f'{r.reference}: {r.error}' for r in results if not r.is_valid))
@@ -217,6 +232,9 @@ def main() -> None:
 
     if any(caf.es_falso() for caf in cafs.values()):
         fail('No se puede enviar al SII con CAF falsos.')
+    if boletas:
+        enviar_boletas(args, empresa, certificate, envio, folios, registro, registro_path, nombre)
+        return
     service = SoapService(SiiEnvironment.CERTIFICACION)
     service.authenticate(certificate)
     upload = service.upload_dte(certificate.get_id(), empresa['emisor']['RUTEmisor'], envio)
@@ -238,6 +256,45 @@ def main() -> None:
             # Estados finales: procesado, rechazos o códigos numéricos de error (p. ej. 106).
             if estado['estado'] in ('EPR', 'RSC', 'RFR', 'RCT') or (estado['estado'] or '').lstrip('-').isdigit():
                 break
+
+
+
+def registrar_folios(folios, registro, registro_path) -> None:
+    """Los folios enviados se consideran usados (aunque el envío se rechace)."""
+    for tipo, siguiente in folios.items():
+        registro[tipo] = max(registro.get(tipo, 0), siguiente - 1)
+    registro_path.write_text(json.dumps({str(k): v for k, v in sorted(registro.items())}, indent=1))
+
+
+def enviar_boletas(args, empresa, certificate, envio, folios, registro, registro_path, nombre) -> None:
+    """Envío por la API REST de boletas y consulta de su estado."""
+    rut = empresa['emisor']['RUTEmisor']
+    service = BoletaService(SiiEnvironment.CERTIFICACION)
+    service.authenticate(certificate)
+    upload = service.upload(certificate.get_id(), rut, envio, filename=f'{nombre}.xml')
+    track_id = upload['track_id']
+    registrar_folios(folios, registro, registro_path)
+    (args.salida / f'{nombre}_trackid.txt').write_text(f'{track_id}\n')
+    print(f'\nEnvioBOLETA recibido por el SII. Track ID: {track_id} ({upload["estado"]})')
+    if not args.consultar:
+        return
+    for intento in range(18):
+        time.sleep(10)
+        try:
+            estado = service.query_upload_status(rut, track_id)
+        except Exception as e:  # p. ej. HTTP 503 temporal del SII
+            print(f'  [{intento + 1}] {e}')
+            continue
+        totales = ', '.join(f"T{e.get('tipo')}: {e.get('aceptados')}/{e.get('informados')} aceptadas, "
+                            f"{e.get('rechazados')} rechazadas, {e.get('reparos')} reparos"
+                            for e in estado['estadistica'])
+        print(f"  [{intento + 1}] {estado['estado']} {totales}")
+        for doc in estado['detalle']:
+            print(f"    T{doc.get('tipo')} F{doc.get('folio')} {doc.get('estado')} {doc.get('descripcion', '')}")
+            for error in doc.get('error') or []:
+                print(f"      {error.get('codigo', '')} {error.get('descripcion', '')} {error.get('detalle') or ''}")
+        if estado['estado'] not in ('REC', 'SOK', 'CRT', 'FOK', 'PDR', None):
+            break
 
 
 if __name__ == '__main__':

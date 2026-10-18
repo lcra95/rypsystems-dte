@@ -28,7 +28,7 @@ def ultimos_envios(directorio: Path):
     """Último envío con Track ID de cada set: {numero_atencion: ruta_envio}."""
     envios = {}
     for trackid in sorted(directorio.glob('set_*_trackid.txt')):
-        numero = re.match(r'set_(\d+)_', trackid.name).group(1)
+        numero = re.match(r'set_([^_]+)_', trackid.name).group(1)
         envio = trackid.with_name(trackid.name.replace('_trackid.txt', '_envio.xml'))
         if envio.exists():
             envios[numero] = envio

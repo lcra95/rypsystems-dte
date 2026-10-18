@@ -435,6 +435,10 @@ class DocumentNormalizer:
 
     def _normalize_receptor(self, data: Dict[str, Any]) -> None:
         receptor = data['Encabezado']['Receptor']
+        # Igual que AbstractContribuyenteFactory de PHP: sin RUT, el receptor
+        # es el genérico 66666666-6 (p. ej. boletas a consumidor final).
+        if not php_bool(receptor.get('RUTRecep')):
+            receptor['RUTRecep'] = '66666666-6'
         provided = self.receptor_provider(dict(receptor)) if self.receptor_provider else {}
         for tag, key in (
             ('RznSocRecep', 'razon_social'), ('GiroRecep', 'giro'), ('Contacto', 'telefono'),

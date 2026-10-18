@@ -60,6 +60,7 @@ TRASLADOS = {
 }
 FORMAS_PAGO = {1: 'Contado', 2: 'Crédito', 3: 'Sin costo (entrega gratuita)'}
 # Documentos sin acuse de recibo ni copia cedible (boletas, notas y exportación).
+BOLETAS = (39, 41)
 SIN_ACUSE_RECIBO = (39, 41, 56, 61, 110, 111, 112)
 ACUSE_RECIBO = (
     'El acuse de recibo que se declara en este acto, de acuerdo a lo dispuesto en la letra b) del Art. 4°, '
@@ -260,7 +261,8 @@ class DtePdf:
         # totales (derecha). Los totales van bajo el contenido y pueden bajar
         # hasta la leyenda cedible; el timbre y el acuse ocupan el pie.
         ancho_totales = 65 * mm
-        tabla_totales = self._tabla_totales(enc.get('Totales', {}), enc.get('OtraMoneda'), ancho_totales, decimales)
+        tabla_totales = self._tabla_totales(enc.get('Totales', {}), enc.get('OtraMoneda'), ancho_totales, decimales,
+                                            tipo)
         _, h_totales = tabla_totales.wrap(ancho_totales, 200 * mm)
         y_totales = min(y, MARGEN + 75 * mm + h_totales)
         if y_totales - h_totales < MARGEN + 8 * mm or y < MARGEN + 62 * mm and y - h_totales < MARGEN + 8 * mm:
@@ -331,6 +333,10 @@ class DtePdf:
 
     def _receptor(self, c, id_doc, receptor, enc, x, y, w) -> float:
         extranjero = receptor.get('Extranjero') or {}
+        if int(id_doc['TipoDTE']) in BOLETAS and not receptor.get('RznSocRecep'):
+            # Boleta a consumidor final (sin receptor identificado).
+            filas = [('Fecha emisión', fecha(id_doc.get('FchEmis', '')), '', '')]
+            return self._tabla_datos(c, filas, x, y, w, (28 * mm, w - 28 * mm - 58 * mm, 28 * mm, 30 * mm), caja=True)
         filas = [
             ('Señor(es)', receptor.get('RznSocRecep', ''), 'Fecha emisión', fecha(id_doc.get('FchEmis', ''))),
             ('R.U.T.', rut(receptor.get('RUTRecep', '')), 'Vencimiento' if id_doc.get('FchVenc') else '',
@@ -398,7 +404,8 @@ class DtePdf:
             tipo_nombre = TIPOS_DOCUMENTO.get(int(tipo) if str(tipo).isdigit() else tipo, tipo)
             razon = r.get('RazonRef', '')
             if r.get('CodRef'):
-                razon = f"{CODIGOS_REFERENCIA.get(int(r['CodRef']), r['CodRef'])}: {razon}".strip(': ')
+                codigo = int(r['CodRef']) if str(r['CodRef']).isdigit() else r['CodRef']  # boletas: 'SET'
+                razon = f"{CODIGOS_REFERENCIA.get(codigo, codigo)}: {razon}".strip(': ')
             filas.append([tipo_nombre, r.get('FolioRef', ''), fecha(r.get('FchRef', '')), razon])
         return self._tabla(c, filas, x, y, w, (60 * mm, 25 * mm, 22 * mm, w - 107 * mm))
 
@@ -449,11 +456,19 @@ class DtePdf:
                           numero(d.get('ValComIVA'))])
         return self._tabla(c, filas, x, y, w, (w - 90 * mm, 30 * mm, 30 * mm, 30 * mm), numericas=(1, 2, 3))
 
-    def _tabla_totales(self, totales, otra_moneda, w, decimales) -> Table:
+    def _tabla_totales(self, totales, otra_moneda, w, decimales, tipo=None) -> Table:
         moneda = totales.get('TpoMoneda')
         filas = []
         if moneda:
             filas.append(('Moneda', moneda))
+        if tipo in BOLETAS:
+            # Boletas: precios con IVA incluido; se informa el IVA contenido en el total.
+            if totales.get('MntExe'):
+                filas.append(('Exento', numero(totales['MntExe'])))
+            filas.append(('TOTAL', numero(totales.get('MntTotal'))))
+            if totales.get('IVA'):
+                filas.append(('IVA incluido', numero(totales['IVA'])))
+            return self._estilo_totales(filas, w)
         etiquetas = (('MntNeto', 'Neto'), ('MntExe', 'Exento'), ('IVA', f"IVA ({numero(totales.get('TasaIVA'))}%)"))
         for campo, etiqueta in etiquetas:
             if totales.get(campo) not in (None, ''):
@@ -469,6 +484,10 @@ class DtePdf:
             filas.append((f"Total {otra.get('TpoMoneda', '')}", numero(otra.get('MntTotOtrMnda'))))
             if otra.get('TpoCambio'):
                 filas.append(('Tipo de cambio', numero(otra.get('TpoCambio'))))
+        return self._estilo_totales(filas, w)
+
+    @staticmethod
+    def _estilo_totales(filas, w) -> Table:
         tabla = Table([list(f) for f in filas], colWidths=(w * 0.55, w * 0.45))
         estilo = [
             ('FONT', (0, 0), (-1, -1), 'Helvetica', 9),
