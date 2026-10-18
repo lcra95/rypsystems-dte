@@ -9,14 +9,14 @@ Estado al 2026-10-18. El plan completo está en `~/.claude/plans/jaunty-growing-
 - **Intercambio:** RecepcionEnvio, EnvioRecibos y ResultadoDTE.
 - **Otros:** PDF carta y térmico 80 mm con el timbre vectorial; libros de compra, venta y guías.
 - **Interfaz pública** (`emision.py`): emitir, armar envío, anular y `ClienteSii`.
+- **Certificación** (`certificacion/`): *parser* del set de pruebas del SII y del de boletas, emisión de sets, libros y muestras impresas. Reproduce exactamente lo que el SII aceptó a RYP.
 - **Certificación de RYP AI SYSTEMS:** set de pruebas, simulación e intercambio aprobados; muestras impresas en revisión del SII.
 
 ## Core (Fase 0)
 - [ ] Tipo de cambio oficial (dólar observado) como proveedor que se inyecta; hoy `TpoCambio` va en los datos.
 - [ ] Confirmar si las boletas exigen hoy el Resumen de Ventas Diarias (aparece en el menú del SII) e implementarlo si corresponde.
 - [ ] Prueba en vivo de los hosts de producción: solo autenticación y consultas.
-- [ ] Convertir los scripts de intercambio y muestras impresas en funciones del core, para el servicio DTE.
-- [ ] *Parser* del texto del set de pruebas del SII (hoy los YAML de `examples/sets/` se escriben a mano).
+- [ ] `libros_certificacion.py`, `libro_guias_certificacion.py` y `muestras_impresion.py` siguen con su propia lógica; podrían usar `rypsystems_dte.certificacion`.
 - [ ] Revisar `dte/document.py`, `dte/factory.py`, `xml/document.py` y `pdf417/`: heredados de la traducción y fuera del flujo de `emision.py`.
 
 ## Servicio DTE (Fase 1, repo `rypsystems-dte-api`)
