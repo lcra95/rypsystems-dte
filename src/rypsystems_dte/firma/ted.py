@@ -413,6 +413,9 @@ def _ted_element(xml: Union[str, bytes]):
     from lxml import etree
     from ..xml.canonical import parse
 
+    # El TED del PDF417 viene en ISO-8859-1 y sin declaración XML.
+    if isinstance(xml, bytes) and not xml.lstrip().startswith(b'<?xml'):
+        xml = b'<?xml version="1.0" encoding="ISO-8859-1"?>' + xml
     try:
         tree = parse(xml)
     except etree.XMLSyntaxError:
