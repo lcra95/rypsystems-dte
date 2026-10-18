@@ -341,7 +341,8 @@ class CafFaker:
         self.fecha_autorizacion = fecha_autorizacion or date.today().isoformat()
 
     def create(self) -> Caf:
-        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        # Los CAF del SII usan claves de 512 bits; 1024 es el mínimo que permite cryptography.
+        key = rsa.generate_private_key(public_exponent=65537, key_size=1024)
         private_pem = key.private_bytes(
             serialization.Encoding.PEM,
             serialization.PrivateFormat.TraditionalOpenSSL,
@@ -351,6 +352,11 @@ class CafFaker:
             serialization.Encoding.PEM,
             serialization.PublicFormat.SubjectPublicKeyInfo,
         ).decode('ascii')
+        # RSAPK con la clave pública real, para que el TED se pueda verificar
+        # con la clave incluida en el timbre (como con un CAF del SII).
+        numbers = key.public_key().public_numbers()
+        modulus = base64.b64encode(numbers.n.to_bytes((numbers.n.bit_length() + 7) // 8, 'big')).decode('ascii')
+        exponent = base64.b64encode(numbers.e.to_bytes((numbers.e.bit_length() + 7) // 8, 'big')).decode('ascii')
 
         xml = (
             '<?xml version="1.0" encoding="ISO-8859-1"?>\n'
@@ -362,7 +368,7 @@ class CafFaker:
             f'<TD>{self.tipo_documento}</TD>'
             f'<RNG><D>{self.desde}</D><H>{self.hasta}</H></RNG>'
             f'<FA>{self.fecha_autorizacion}</FA>'
-            '<RSAPK><M>bGlicmVkdGUtY2FmLW1vZHVsdXM=</M><E>bGlicmVkdGUtY2FmLWV4cG9uZW50</E></RSAPK>'
+            f'<RSAPK><M>{modulus}</M><E>{exponent}</E></RSAPK>'
             f'<IDK>{Caf.IDK_FAKE}</IDK>'
             '</DA>'
             '<FRMA algoritmo="SHA1withRSA">bGlicmVkdGUtY2FmLXNpZ25hdHVyZQ==</FRMA>'

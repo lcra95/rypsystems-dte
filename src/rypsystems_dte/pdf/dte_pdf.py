@@ -145,7 +145,15 @@ def ted_pdf417(dte: Union[bytes, etree._Element]) -> Optional[bytes]:
 
 def pdf417_image(data: bytes, columns: int = 12):
     """Imagen PDF417 (nivel de seguridad 5) para el timbre."""
-    codes = pdf417gen.encode(data, columns=columns, security_level=5)
+    # Un PDF417 admite hasta 90 filas: si los datos no caben se agregan columnas.
+    while True:
+        try:
+            codes = pdf417gen.encode(data, columns=columns, security_level=5)
+            break
+        except ValueError:
+            if columns >= 30:
+                raise
+            columns += 1
     return pdf417gen.render_image(codes, scale=3, ratio=3, padding=0)
 
 
