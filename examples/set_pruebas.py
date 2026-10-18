@@ -44,14 +44,10 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 
-from rypsystems_dte.dte import DocumentBag, DocumentEnvelope, DTEBuilder  # noqa: E402
-from rypsystems_dte.firma import DigitalCertificate, XmlSigner  # noqa: E402
-from rypsystems_dte.firma.ted import TEDValidator  # noqa: E402
-from rypsystems_dte.identifier import Caf, CafValidator  # noqa: E402
-from rypsystems_dte.sii.webservices.sii_endpoints import SiiEnvironment  # noqa: E402
-from rypsystems_dte.sii.webservices.boleta_service import BoletaService  # noqa: E402
-from rypsystems_dte.sii.webservices.soap_service import SoapService  # noqa: E402
-from rypsystems_dte.xml.schema import schema_errors  # noqa: E402
+from rypsystems_dte import (  # noqa: E402
+    Caf, CafValidator, ClienteSii, DigitalCertificate, EmisionError, SiiEnvironment, armar_envio, emitir_documento,
+)
+from rypsystems_dte.sii.webservices import BoletaService  # noqa: E402
 
 BOLETAS = (39, 41)
 RECEPTOR_BOLETA = {'RUTRecep': '66666666-6'}
@@ -129,7 +125,7 @@ def main() -> None:
     # originales rotan entre los receptores; las notas usan el del referenciado.
     receptores = empresa.get('receptores') or [empresa['receptor']]
     siguiente_receptor = 0
-    envelope = DocumentEnvelope(certificate, empresa['fecha_resolucion'], empresa.get('numero_resolucion', 0))
+    documentos = []
 
     print(f'{nombre_set} - emisor {empresa["emisor"]["RUTEmisor"]}, '
           f'envía {certificate.get_id()} {certificate.get_name()}\n')
@@ -188,42 +184,29 @@ def main() -> None:
             'Comisiones': copy.deepcopy(caso.get('comisiones') or False),
         }
 
-        bag = DocumentBag(tipo, datos)
-        bag.set_caf(cafs[tipo])
-        bag.set_certificate(certificate)
-        DTEBuilder().build(bag)
-        xml = bag.get_xml()
-
-        # Las boletas no son parte de DTE_v10.xsd: se validan dentro del EnvioBOLETA.
-        errors = [] if boletas else schema_errors(xml, 'DTE_v10.xsd')
-        if errors:
-            fail(f'Caso {caso["caso"]}: el DTE no cumple el esquema: {"; ".join(errors[:3])}')
-        if not TEDValidator.verify_ted_signature(xml, cafs[tipo]) or not XmlSigner().is_valid_xml(xml):
-            fail(f'Caso {caso["caso"]}: timbre o firma inválidos.')
-
-        totales = bag.get_datos()['Encabezado']['Totales']
-        rut_recep = bag.get_datos()['Encabezado']['Receptor'].get('RUTRecep')
+        try:
+            documento = emitir_documento(datos, cafs[tipo], certificate)
+        except EmisionError as e:
+            fail(f'Caso {caso["caso"]}: {e}')
+        totales, rut_recep = documento.totales, documento.receptor
         print(f'{caso["caso"]:<12} {NOMBRES[tipo]:<15} {folio:>6} {miles(totales.get("MntNeto")):>12} '
               f'{miles(totales.get("MntExe")):>10} {miles(totales.get("IVA")):>11} {miles(totales.get("MntTotal")):>12}  '
               f'{rut_recep:<11} {texto_ref}')
 
         emitidos[caso['caso']] = {'tipo': tipo, 'folio': folio, 'fecha': hoy, 'detalle': detalle,
                                   'receptor': datos['Encabezado']['Receptor']}
-        envelope.add_document(xml)
+        documentos.append(documento)
 
-    envio = envelope.build()
-    errors = schema_errors(envio, envelope.get_schema())
-    if errors:
-        fail(f'El {envelope.get_tag()} no cumple el esquema: {"; ".join(errors[:3])}')
-    results = XmlSigner().validate_xml(envio)
-    if not all(r.is_valid for r in results):
-        fail('Firmas inválidas en el EnvioDTE: ' + ', '.join(f'{r.reference}: {r.error}' for r in results if not r.is_valid))
+    try:
+        envio = armar_envio(documentos, certificate, empresa['fecha_resolucion'], empresa.get('numero_resolucion', 0))
+    except EmisionError as e:
+        fail(str(e))
 
     args.salida.mkdir(parents=True, exist_ok=True)
     nombre = f'{nombre_set}_{datetime.now().strftime("%Y%m%d%H%M%S")}'
     salida = args.salida / f'{nombre}_envio.xml'
     salida.write_bytes(envio)
-    print(f'\nOK: {len(set_data["casos"])} documentos timbrados y firmados, EnvioDTE válido ({len(results)} firmas).')
+    print(f'\nOK: {len(set_data["casos"])} documentos timbrados y firmados, sobre válido y firmado.')
     print(f'Guardado en {salida}')
     print('Siguientes folios: ' + ', '.join(f'{t}={f}' for t, f in folios.items()))
 
@@ -236,10 +219,8 @@ def main() -> None:
     if boletas:
         enviar_boletas(args, empresa, certificate, envio, folios, registro, registro_path, nombre)
         return
-    service = SoapService(SiiEnvironment.CERTIFICACION)
-    service.authenticate(certificate)
-    upload = service.upload_dte(certificate.get_id(), empresa['emisor']['RUTEmisor'], envio)
-    track_id = upload['track_id']
+    sii = ClienteSii(certificate, SiiEnvironment.CERTIFICACION)
+    track_id = sii.enviar(envio, empresa['emisor']['RUTEmisor'])
     # Los folios enviados se consideran usados (aunque el envío se rechace se
     # prefiere no reutilizarlos).
     for tipo, siguiente in folios.items():
@@ -251,7 +232,7 @@ def main() -> None:
     if args.consultar:
         for intento in range(12):
             time.sleep(10)
-            estado = service.query_upload_status(empresa['emisor']['RUTEmisor'], track_id)
+            estado = sii.servicio_dte().query_upload_status(empresa['emisor']['RUTEmisor'], track_id)
             print(f"  [{intento + 1}] {estado['estado']} - {estado['descripcion'] or estado['glosa']} "
                   f"(aceptados {estado['aceptados']}, rechazados {estado['rechazados']}, reparos {estado['reparos']})")
             # Estados finales: procesado, rechazos o códigos numéricos de error (p. ej. 106).
