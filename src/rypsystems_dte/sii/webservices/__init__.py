@@ -13,9 +13,6 @@ from .sii_endpoints import SiiEndpoints, SiiEnvironment
 from .soap_service import SoapService
 from .boleta_service import BoletaService
 from .registro_reclamo_service import RegistroReclamoService
-from .rest_service import RestService
-from .document_sender import DocumentSender, SendingProtocol, SendingResult
-from .status_checker import StatusChecker, DocumentStatus, StatusQueryResult
 from .exceptions import (
     SiiWebServiceException,
     SiiAuthenticationError,
@@ -32,13 +29,6 @@ __all__ = [
     'SoapService',
     'BoletaService',
     'RegistroReclamoService',
-    'RestService',
-    'DocumentSender',
-    'SendingProtocol',
-    'SendingResult',
-    'StatusChecker',
-    'DocumentStatus',
-    'StatusQueryResult',
     'SiiWebServiceException',
     'SiiAuthenticationError',
     'SiiValidationError',
