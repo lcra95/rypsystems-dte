@@ -333,7 +333,8 @@ class DtePdf:
         extranjero = receptor.get('Extranjero') or {}
         filas = [
             ('Señor(es)', receptor.get('RznSocRecep', ''), 'Fecha emisión', fecha(id_doc.get('FchEmis', ''))),
-            ('R.U.T.', rut(receptor.get('RUTRecep', '')), 'Vencimiento', fecha(id_doc.get('FchVenc', ''))),
+            ('R.U.T.', rut(receptor.get('RUTRecep', '')), 'Vencimiento' if id_doc.get('FchVenc') else '',
+             fecha(id_doc.get('FchVenc', ''))),
             ('Giro', receptor.get('GiroRecep', ''), 'Forma de pago',
              FORMAS_PAGO.get(int(id_doc['FmaPago']), id_doc['FmaPago']) if id_doc.get('FmaPago') else ''),
             ('Dirección', ', '.join(v for v in (receptor.get('DirRecep'), receptor.get('CmnaRecep'),

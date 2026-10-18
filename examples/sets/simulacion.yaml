@@ -1,0 +1,71 @@
+# SIMULACION - Documentos que representan la operación real de RYP AI SYSTEMS
+# (servicios de tecnologías de la información, Acteco 620900).
+# Sin referencia SET: deben verse como documentos de una operación normal.
+# Los receptores rotan entre los de empresa_certificacion.yaml.
+nombre: simulacion
+referencia_set: false
+casos:
+  - caso: SIM-1
+    tipo: 33
+    encabezado: {IdDoc: {FmaPago: 2}}
+    detalle:
+      - {NmbItem: Desarrollo de plataforma web, DscItem: Hito 1 - Diseño y arquitectura, QtyItem: 1, UnmdItem: UN, PrcItem: 2500000}
+
+  - caso: SIM-2
+    tipo: 33
+    encabezado: {IdDoc: {FmaPago: 1}}
+    detalle:
+      - {NmbItem: Soporte y mantención de sistemas, DscItem: Plan mensual octubre 2026, QtyItem: 1, UnmdItem: UN, PrcItem: 450000}
+      - {NmbItem: Horas adicionales de soporte, QtyItem: 6, UnmdItem: HRS, PrcItem: 35000}
+
+  - caso: SIM-3
+    tipo: 33
+    encabezado: {IdDoc: {FmaPago: 2}}
+    detalle:
+      - {NmbItem: Consultoría en inteligencia artificial, QtyItem: 20, UnmdItem: HRS, PrcItem: 60000, DescuentoPct: 10}
+
+  - caso: SIM-4
+    tipo: 33
+    encabezado: {IdDoc: {FmaPago: 1}}
+    detalle:
+      - {NmbItem: Suscripción plataforma SaaS plan Pyme, DscItem: Licencia mensual por usuario, QtyItem: 3, UnmdItem: UN, PrcItem: 89990}
+      - {NmbItem: Implementación y configuración, QtyItem: 1, UnmdItem: UN, PrcItem: 300000}
+
+  - caso: SIM-5
+    tipo: 33
+    encabezado: {IdDoc: {FmaPago: 2}}
+    detalle:
+      - {NmbItem: Desarrollo de integración API, QtyItem: 1, UnmdItem: UN, PrcItem: 1200000}
+      - {NmbItem: Capacitación de usuarios, QtyItem: 4, UnmdItem: HRS, PrcItem: 45000}
+    descuentos_recargos:
+      - {TpoMov: D, GlosaDR: Descuento cliente frecuente, TpoValor: '%', ValorDR: 5}
+
+  - caso: SIM-6
+    tipo: 34
+    encabezado: {IdDoc: {FmaPago: 1}}
+    detalle:
+      - {NmbItem: Curso de capacitación en análisis de datos, QtyItem: 1, UnmdItem: UN, PrcItem: 380000, IndExe: 1}
+
+  - caso: SIM-7
+    tipo: 61
+    referencia: {caso: SIM-4, CodRef: 3, RazonRef: Devolución de una licencia no utilizada}
+    detalle:
+      - {NmbItem: Suscripción plataforma SaaS plan Pyme, QtyItem: 1, UnmdItem: UN, PrcItem: 89990}
+
+  - caso: SIM-8
+    tipo: 61
+    referencia: {caso: SIM-2, CodRef: 2, RazonRef: Corrige giro del receptor}
+    # Solo corrige texto: una línea con el nombre del ítem, sin cantidad ni precio.
+    detalle:
+      - {NmbItem: Soporte y mantención de sistemas}
+
+  - caso: SIM-9
+    tipo: 56
+    referencia: {caso: SIM-1, CodRef: 3, RazonRef: Intereses por pago fuera de plazo}
+    detalle:
+      - {NmbItem: Intereses por mora, QtyItem: 1, UnmdItem: UN, PrcItem: 25000}
+
+  - caso: SIM-10
+    tipo: 61
+    referencia: {caso: SIM-3, CodRef: 1, RazonRef: Anula factura por error en el servicio facturado}
+    detalle: copiar

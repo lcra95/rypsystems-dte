@@ -21,6 +21,10 @@ Ejemplo:
 Los folios usados se registran en <salida>/folios_<RUT>.json después de cada
 envío, y por defecto se usa el siguiente folio libre de cada tipo. Para
 forzar el primer folio de un tipo use --folio 33=5.
+
+Para la etapa de simulación (documentos que representan la operación real de
+la empresa) el YAML lleva `referencia_set: false`, y así los documentos no
+llevan la referencia SET. Cada caso puede indicar su propio `receptor`.
 """
 
 import argparse
@@ -108,6 +112,8 @@ def main() -> None:
         folios[tipo] = inicio.get(tipo, max(caf.get_folio_desde(), registro.get(tipo, 0) + 1))
 
     hoy = datetime.now().strftime('%Y-%m-%d')
+    referencia_set = set_data.get('referencia_set', True)
+    nombre_set = set_data.get('nombre') or f'set_{set_data["numero_atencion"]}'
     emitidos = {}  # caso -> datos del documento emitido
     # "Utilice RUT distintos para las distintas facturas": los documentos
     # originales rotan entre los receptores; las notas usan el del referenciado.
@@ -115,7 +121,7 @@ def main() -> None:
     siguiente_receptor = 0
     envelope = DocumentEnvelope(certificate, empresa['fecha_resolucion'], empresa.get('numero_resolucion', 0))
 
-    print(f'Set {set_data["numero_atencion"]} - emisor {empresa["emisor"]["RUTEmisor"]}, '
+    print(f'{nombre_set} - emisor {empresa["emisor"]["RUTEmisor"]}, '
           f'envía {certificate.get_id()} {certificate.get_name()}\n')
     print(f'{"Caso":<12} {"Documento":<15} {"Folio":>6} {"Neto":>12} {"Exento":>10} {"IVA":>11} {"Total":>12}  '
           f'{"Receptor":<11} Referencia')
@@ -134,13 +140,15 @@ def main() -> None:
 
         referencias = [{
             'TpoDocRef': 'SET', 'FolioRef': folio, 'FchRef': hoy, 'RazonRef': f'CASO {caso["caso"]}',
-        }]
+        }] if referencia_set else []
         # Otras referencias (DUS, AWB, MIC...) a partir de la línea 2.
         referencias += copy.deepcopy(caso.get('referencias_extra') or [])
         texto_ref = ''
         if ref:
             original = emitidos[ref['caso']]
             receptor = dict(original['receptor'])
+        elif caso.get('receptor'):
+            receptor = dict(caso['receptor'])
         else:
             receptor = dict(receptores[siguiente_receptor % len(receptores)])
             siguiente_receptor += 1
@@ -161,7 +169,7 @@ def main() -> None:
             },
             'Detalle': copy.deepcopy(detalle),
             'DscRcgGlobal': copy.deepcopy(caso.get('descuentos_recargos') or False),
-            'Referencia': referencias,
+            'Referencia': referencias or False,
             'Comisiones': copy.deepcopy(caso.get('comisiones') or False),
         }
 
@@ -196,7 +204,7 @@ def main() -> None:
         fail('Firmas inválidas en el EnvioDTE: ' + ', '.join(f'{r.reference}: {r.error}' for r in results if not r.is_valid))
 
     args.salida.mkdir(parents=True, exist_ok=True)
-    nombre = f'set_{set_data["numero_atencion"]}_{datetime.now().strftime("%Y%m%d%H%M%S")}'
+    nombre = f'{nombre_set}_{datetime.now().strftime("%Y%m%d%H%M%S")}'
     salida = args.salida / f'{nombre}_envio.xml'
     salida.write_bytes(envio)
     print(f'\nOK: {len(set_data["casos"])} documentos timbrados y firmados, EnvioDTE válido ({len(results)} firmas).')
