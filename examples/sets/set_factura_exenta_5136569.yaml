@@ -26,8 +26,11 @@ casos:
   - caso: 5136569-4
     tipo: 61
     referencia: {caso: 5136569-3, CodRef: 2, RazonRef: CORRIGE GIRO}
+    # Nota que solo corrige texto (CodRef 2): una línea con el ítem del documento
+    # original, sin cantidad ni precio y monto 0 (con QtyItem 1 el SII rechazó
+    # "Los Valores de la Linea 1 del Detalle No Cuadran").
     detalle:
-      - {NmbItem: CORRIGE GIRO, QtyItem: 1, PrcItem: false, IndExe: 1}
+      - {NmbItem: SERV CONSULTORIA FACT ELECTRONICA, IndExe: 1}
 
   - caso: 5136569-5
     tipo: 56

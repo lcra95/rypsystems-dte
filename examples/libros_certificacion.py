@@ -76,6 +76,8 @@ def main() -> None:
     parser.add_argument('--proveedor-rut', default='78885550-8', help='RUT válido para los proveedores')
     parser.add_argument('--proveedor-razon', default='Proveedor de Prueba Limitada')
     parser.add_argument('--salida', type=Path, default=ROOT / 'output' / 'certificacion')
+    parser.add_argument('--libros', default='ventas,compras',
+                        help='Libros a generar y enviar, separados por coma (ventas, compras)')
     parser.add_argument('--enviar', action='store_true')
     parser.add_argument('--consultar', action='store_true')
     args = parser.parse_args()
@@ -116,10 +118,12 @@ def main() -> None:
     comun = dict(certificate=certificate, rut_emisor=rut, periodo=periodo,
                  fecha_resolucion=str(empresa['fecha_resolucion']),
                  numero_resolucion=empresa.get('numero_resolucion', 0), tipo_libro='ESPECIAL', tipo_envio='TOTAL')
-    libros = {
-        'ventas': ventas.generar(folio_notificacion=1, **comun),
-        'compras': compras.generar(folio_notificacion=set_compras.get('folio_notificacion', 2), **comun),
-    }
+    elegidos = {nombre.strip() for nombre in args.libros.split(',')}
+    libros = {}
+    if 'ventas' in elegidos:
+        libros['ventas'] = ventas.generar(folio_notificacion=1, **comun)
+    if 'compras' in elegidos:
+        libros['compras'] = compras.generar(folio_notificacion=set_compras.get('folio_notificacion', 2), **comun)
 
     print(f'Libros del período {periodo} - {rut}, envía {certificate.get_id()}')
     imprimir_resumen(f'LIBRO DE VENTAS ({len(dtes)} documentos del set)', ventas)

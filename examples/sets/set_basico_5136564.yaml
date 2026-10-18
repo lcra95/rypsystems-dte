@@ -34,8 +34,11 @@ casos:
   - caso: 5136564-5
     tipo: 61
     referencia: {caso: 5136564-1, CodRef: 2, RazonRef: CORRIGE GIRO DEL RECEPTOR}
+    # Nota que solo corrige texto (CodRef 2): una línea con el ítem del documento
+    # original, sin cantidad ni precio y monto 0. Con QtyItem 1 el SII rechaza
+    # "Los Valores de la Linea 1 del Detalle No Cuadran".
     detalle:
-      - {NmbItem: CORRIGE GIRO DEL RECEPTOR, QtyItem: 1, PrcItem: false}
+      - {NmbItem: Cajón AFECTO}
 
   - caso: 5136564-6
     tipo: 61
