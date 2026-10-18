@@ -256,13 +256,24 @@ class DtePdf:
         dtes = [root] if _local(root) == 'DTE' else root.xpath('.//*[local-name()="DTE"]')
         return self._render_dtes(dtes, cedible)
 
+    def render_cedible(self, xml: Union[str, bytes]) -> Optional[bytes]:
+        """PDF solo con la copia cedible de un DTE (None si el tipo no la lleva)."""
+        if isinstance(xml, str):
+            xml = xml.encode('iso-8859-1', errors='xmlcharrefreplace')
+        root = etree.fromstring(xml)
+        dtes = [root] if _local(root) == 'DTE' else root.xpath('.//*[local-name()="DTE"]')
+        tipos = [int(d.xpath('string(.//*[local-name()="IdDoc"]/*[local-name()="TipoDTE"])')) for d in dtes]
+        if all(t in SIN_ACUSE_RECIBO for t in tipos):
+            return None
+        return self._render_dtes(dtes, cedible=True, original=False)
+
     def render_envio(self, xml: Union[str, bytes], cedible: bool = True) -> bytes:
         """PDF con todos los DTE de un EnvioDTE."""
         return self.render(xml, cedible)
 
     # ------------------------------------------------------------------
 
-    def _render_dtes(self, dtes: List[etree._Element], cedible: bool) -> bytes:
+    def _render_dtes(self, dtes: List[etree._Element], cedible: bool, original: bool = True) -> bytes:
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=letter)
         c.setTitle('Documentos tributarios electrónicos')
@@ -271,7 +282,8 @@ class DtePdf:
             datos = _to_dict(documento)
             tipo = int(datos['Encabezado']['IdDoc']['TipoDTE'])
             timbre = ted_pdf417(dte)
-            self._pagina(c, datos, timbre, copia=None)
+            if original:
+                self._pagina(c, datos, timbre, copia=None)
             if cedible and tipo not in SIN_ACUSE_RECIBO:
                 self._pagina(c, datos, timbre, copia='CEDIBLE CON SU FACTURA' if tipo == 52 else 'CEDIBLE')
         c.save()

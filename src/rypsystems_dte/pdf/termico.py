@@ -88,7 +88,7 @@ class DtePdfTermico(DtePdf):
         self.ancho = ancho_papel - 2 * MARGEN_X
         self.timbre_boletas = timbre_boletas
 
-    def _render_dtes(self, dtes: List[etree._Element], cedible: bool) -> bytes:
+    def _render_dtes(self, dtes: List[etree._Element], cedible: bool, original: bool = True) -> bytes:
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=(self.ancho_papel, 100 * mm))
         c.setTitle('Documentos tributarios electrónicos')
@@ -97,7 +97,8 @@ class DtePdfTermico(DtePdf):
             datos = _to_dict(documento)
             tipo = int(datos['Encabezado']['IdDoc']['TipoDTE'])
             timbre = ted_pdf417(dte) if self.timbre_boletas or tipo not in BOLETAS else None
-            self._dibujar(c, self._contenido(datos, timbre, None))
+            if original:
+                self._dibujar(c, self._contenido(datos, timbre, None))
             if cedible and tipo not in SIN_ACUSE_RECIBO:
                 copia = 'CEDIBLE CON SU FACTURA' if tipo == 52 else 'CEDIBLE'
                 self._dibujar(c, self._contenido(datos, timbre, copia))

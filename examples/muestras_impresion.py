@@ -44,6 +44,9 @@ def main() -> None:
     parser.add_argument('--logo', type=Path)
     parser.add_argument('--formato', choices=('carta', '80mm'), default='carta',
                         help='Hoja carta o rollo térmico de 80 mm')
+    parser.add_argument('--para-sii', action='store_true',
+                        help='Carpeta para subir a "Ingreso de Muestras Impresas": un PDF por documento '
+                             'y otro por copia cedible, de los sets de prueba (sin boletas) y la simulación')
     parser.add_argument('--sin-timbre-boletas', action='store_true',
                         help='No imprimir el timbre en boletas (opcional desde 2026)')
     args = parser.parse_args()
@@ -58,6 +61,9 @@ def main() -> None:
     )
     args.salida.mkdir(parents=True, exist_ok=True)
     sufijo = '_80mm' if args.formato == '80mm' else ''
+    if args.para_sii:
+        para_sii(pdf, ultimos_envios(args.envios), args.salida.parent / 'muestras_sii')
+        return
     for nombre, (envio, track_id) in ultimos_envios(args.envios).items():
         xml = envio.read_bytes()
         dtes = etree.fromstring(xml).xpath('//*[local-name()="SetDTE"]/*[local-name()="DTE"]')
@@ -71,6 +77,31 @@ def main() -> None:
             folio = dte.xpath('string(.//*[local-name()="IdDoc"]/*[local-name()="Folio"])')
             ruta = args.salida / f'{nombre}_T{int(tipo):03d}F{int(folio):09d}{sufijo}.pdf'
             ruta.write_bytes(pdf.render(etree.tostring(dte)))
+
+
+
+def para_sii(pdf, envios, salida: Path) -> None:
+    """Un PDF por documento original y uno por copia cedible (las boletas se certifican aparte)."""
+    salida.mkdir(parents=True, exist_ok=True)
+    total = 0
+    for nombre, (envio, track_id) in envios.items():
+        if nombre == 'set_boleta':
+            continue
+        dtes = etree.fromstring(envio.read_bytes()).xpath('//*[local-name()="SetDTE"]/*[local-name()="DTE"]')
+        archivos = 0
+        for dte in dtes:
+            tipo = int(dte.xpath('string(.//*[local-name()="IdDoc"]/*[local-name()="TipoDTE"])'))
+            folio = int(dte.xpath('string(.//*[local-name()="IdDoc"]/*[local-name()="Folio"])'))
+            xml = etree.tostring(dte)
+            (salida / f'T{tipo}_F{folio}.pdf').write_bytes(pdf.render(xml, cedible=False))
+            archivos += 1
+            cedible = pdf.render_cedible(xml)
+            if cedible:
+                (salida / f'T{tipo}_F{folio}_cedible.pdf').write_bytes(cedible)
+                archivos += 1
+        total += archivos
+        print(f'{nombre} (Track ID {track_id}): {len(dtes)} documentos, {archivos} PDF')
+    print(f'Total: {total} PDF en {salida}')
 
 
 if __name__ == '__main__':
