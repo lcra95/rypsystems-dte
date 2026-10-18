@@ -1,67 +1,216 @@
-# SIMULACION - Documentos que representan la operación real de RYP AI SYSTEMS
+# SIMULACION - Documentos que representan la operación de RYP AI SYSTEMS
 # (servicios de tecnologías de la información, Acteco 620900).
-# Sin referencia SET: deben verse como documentos de una operación normal.
-# Los receptores rotan entre los de empresa_certificacion.yaml.
-# Solo tipos que la empresa emite; la factura exenta (34) ya quedó probada en
-# el set de factura exenta aprobado por el SII.
+# Requisitos del SII para la simulación: un único envío con entre 20 y 100
+# documentos, de todos los tipos que se están certificando (33, 34, 43, 46,
+# 52, 56, 61, 110, 111, 112; las boletas se certifican aparte) y con datos de
+# la operación (no los del set de pruebas). Sin referencia SET.
+# Los receptores nacionales rotan entre los de empresa_certificacion.yaml.
 nombre: simulacion
 referencia_set: false
+
+exportacion_servicios: &exportacion
+  IdDoc: {IndServicio: 3, FmaPagExp: 32}
+  Receptor:
+    RUTRecep: 55555555-5
+    RznSocRecep: Northwind Software Inc.
+    Extranjero: {Nacionalidad: 225}
+    GiroRecep: Desarrollo de software
+    DirRecep: 500 Market Street, San Francisco
+  Transporte:
+    Aduana:
+      CodClauVenta: 6          # S/CL
+      CodViaTransp: 4          # Aéreo
+      CodPtoEmbarque: 992      # Aeropuerto A. Merino Benítez
+      CodPtoDesemb: 180        # Otros puertos de EE.UU.
+      CodPaisRecep: 225        # U.S.A.
+      CodPaisDestin: 225
+  Totales: {TpoMoneda: DOLAR USA}
+  OtraMoneda: {TpoMoneda: PESO CL, TpoCambio: 950}
+
 casos:
-  - caso: SIM-1
+  # --- Facturas afectas (33) ---
+  - caso: SIM-01
     tipo: 33
-    encabezado: {IdDoc: {FmaPago: 2}}
+    encabezado: {IdDoc: {FmaPago: 2, FchVenc: '2026-11-16'}}
     detalle:
       - {NmbItem: Desarrollo de plataforma web, DscItem: Hito 1 - Diseño y arquitectura, QtyItem: 1, UnmdItem: UN, PrcItem: 2500000}
 
-  - caso: SIM-2
+  - caso: SIM-02
     tipo: 33
     encabezado: {IdDoc: {FmaPago: 1}}
     detalle:
       - {NmbItem: Soporte y mantención de sistemas, DscItem: Plan mensual octubre 2026, QtyItem: 1, UnmdItem: UN, PrcItem: 450000}
       - {NmbItem: Horas adicionales de soporte, QtyItem: 6, UnmdItem: HRS, PrcItem: 35000}
 
-  - caso: SIM-3
+  - caso: SIM-03
     tipo: 33
-    encabezado: {IdDoc: {FmaPago: 2}}
+    encabezado: {IdDoc: {FmaPago: 2, FchVenc: '2026-11-16'}}
     detalle:
       - {NmbItem: Consultoría en inteligencia artificial, QtyItem: 20, UnmdItem: HRS, PrcItem: 60000, DescuentoPct: 10}
 
-  - caso: SIM-4
+  - caso: SIM-04
     tipo: 33
     encabezado: {IdDoc: {FmaPago: 1}}
     detalle:
       - {NmbItem: Suscripción plataforma SaaS plan Pyme, DscItem: Licencia mensual por usuario, QtyItem: 3, UnmdItem: UN, PrcItem: 89990}
       - {NmbItem: Implementación y configuración, QtyItem: 1, UnmdItem: UN, PrcItem: 300000}
 
-  - caso: SIM-5
+  - caso: SIM-05
     tipo: 33
-    encabezado: {IdDoc: {FmaPago: 2}}
+    encabezado: {IdDoc: {FmaPago: 2, FchVenc: '2026-12-01'}}
     detalle:
       - {NmbItem: Desarrollo de integración API, QtyItem: 1, UnmdItem: UN, PrcItem: 1200000}
       - {NmbItem: Capacitación de usuarios, QtyItem: 4, UnmdItem: HRS, PrcItem: 45000}
     descuentos_recargos:
       - {TpoMov: D, GlosaDR: Descuento cliente frecuente, TpoValor: '%', ValorDR: 5}
 
-  - caso: SIM-7
+  - caso: SIM-06
+    tipo: 33
+    encabezado: {IdDoc: {FmaPago: 1}}
+    detalle:
+      - {NmbItem: Notebook 14 pulgadas 16GB RAM, QtyItem: 2, UnmdItem: UN, PrcItem: 649990}
+      - {NmbItem: Monitor 27 pulgadas, QtyItem: 2, UnmdItem: UN, PrcItem: 189990}
+      - {NmbItem: Configuración de equipos, QtyItem: 2, UnmdItem: UN, PrcItem: 25000, DescuentoPct: 20}
+
+  - caso: SIM-07
+    tipo: 33
+    encabezado: {IdDoc: {FmaPago: 2, FchVenc: '2026-11-16'}}
+    detalle:
+      - {NmbItem: Hosting y administración de servidores, DscItem: Octubre 2026, QtyItem: 1, UnmdItem: UN, PrcItem: 180000}
+      - {NmbItem: Certificado SSL anual, QtyItem: 1, UnmdItem: UN, PrcItem: 45000}
+    descuentos_recargos:
+      - {TpoMov: R, GlosaDR: Recargo atención fuera de horario, TpoValor: $, ValorDR: 30000}
+
+  - caso: SIM-08
+    tipo: 33
+    encabezado: {IdDoc: {FmaPago: 1}}
+    detalle:
+      - {NmbItem: Auditoría de seguridad informática, QtyItem: 1, UnmdItem: UN, PrcItem: 980000}
+      - {NmbItem: Informe ejecutivo de riesgos, QtyItem: 1, UnmdItem: UN, PrcItem: 150000}
+
+  # --- Facturas exentas (34) ---
+  - caso: SIM-09
+    tipo: 34
+    encabezado: {IdDoc: {FmaPago: 1}}
+    detalle:
+      - {NmbItem: Curso de capacitación en análisis de datos, QtyItem: 1, UnmdItem: UN, PrcItem: 380000, IndExe: 1}
+
+  - caso: SIM-10
+    tipo: 34
+    encabezado: {IdDoc: {FmaPago: 2, FchVenc: '2026-11-16'}}
+    detalle:
+      - {NmbItem: Taller de programación en Python, QtyItem: 12, UnmdItem: HRS, PrcItem: 40000, IndExe: 1}
+
+  - caso: SIM-11
+    tipo: 34
+    encabezado: {IdDoc: {FmaPago: 1}}
+    detalle:
+      - {NmbItem: Curso de ciberseguridad para usuarios, QtyItem: 15, UnmdItem: UN, PrcItem: 25000, IndExe: 1}
+      - {NmbItem: Material de estudio, QtyItem: 15, UnmdItem: UN, PrcItem: 5000, IndExe: 1}
+
+  # --- Guías de despacho (52) ---
+  - caso: SIM-12
+    tipo: 52
+    # Venta: traslado por el emisor a las instalaciones del cliente.
+    encabezado: {IdDoc: {TipoDespacho: 2, IndTraslado: 1}}
+    detalle:
+      - {NmbItem: Notebook 14 pulgadas 16GB RAM, QtyItem: 2, UnmdItem: UN, PrcItem: 649990}
+      - {NmbItem: Monitor 27 pulgadas, QtyItem: 2, UnmdItem: UN, PrcItem: 189990}
+
+  - caso: SIM-13
+    tipo: 52
+    # Traslado interno de equipos entre bodegas de la empresa.
+    encabezado: {IdDoc: {IndTraslado: 5}}
+    detalle:
+      - {NmbItem: Servidor rack 2U, QtyItem: 1, UnmdItem: UN}
+      - {NmbItem: Switch 24 puertos, QtyItem: 2, UnmdItem: UN}
+
+  # --- Factura de compra (46): compra a vendedor sin inicio de actividades,
+  # con retención total del IVA (código 15) ---
+  - caso: SIM-14
+    tipo: 46
+    detalle:
+      - {NmbItem: Notebook usado para repuestos, QtyItem: 3, UnmdItem: UN, PrcItem: 120000, CodImpAdic: 15}
+      - {NmbItem: Disco SSD usado 512GB, QtyItem: 5, UnmdItem: UN, PrcItem: 18000, CodImpAdic: 15}
+
+  # --- Liquidación factura (43): venta de licencias en consignación ---
+  - caso: SIM-15
+    tipo: 43
+    detalle:
+      - {TpoDocLiq: 33, NmbItem: NETO FACTURAS ELECTRONICAS LICENCIAS, QtyItem: 4, MontoItem: 1200000}
+      - {TpoDocLiq: 33, IndExe: 1, NmbItem: EXENTO FACTURAS ELECTRONICAS SOPORTE, QtyItem: 2, MontoItem: 150000}
+    comisiones:
+      - {TipoMovim: C, Glosa: NETO COMISION POR VENTA DE LICENCIAS, ValComNeto: 120000}
+
+  # --- Exportación de servicios (110) ---
+  - caso: SIM-16
+    tipo: 110
+    encabezado: *exportacion
+    detalle:
+      - {NmbItem: Desarrollo de software a medida, DscItem: Sprint 1 y 2, QtyItem: 80, UnmdItem: HRS, PrcItem: 45}
+
+  - caso: SIM-17
+    tipo: 110
+    encabezado: *exportacion
+    detalle:
+      - {NmbItem: Consultoría en inteligencia artificial, QtyItem: 10, UnmdItem: HRS, PrcItem: 70}
+      - {NmbItem: Mantención mensual de modelos, QtyItem: 1, UnmdItem: UN, PrcItem: 500}
+
+  # --- Notas de crédito (61) ---
+  - caso: SIM-18
     tipo: 61
-    referencia: {caso: SIM-4, CodRef: 3, RazonRef: Devolución de una licencia no utilizada}
+    referencia: {caso: SIM-04, CodRef: 3, RazonRef: Devolución de una licencia no utilizada}
     detalle:
       - {NmbItem: Suscripción plataforma SaaS plan Pyme, QtyItem: 1, UnmdItem: UN, PrcItem: 89990}
 
-  - caso: SIM-8
+  - caso: SIM-19
     tipo: 61
-    referencia: {caso: SIM-2, CodRef: 2, RazonRef: Corrige giro del receptor}
+    referencia: {caso: SIM-02, CodRef: 2, RazonRef: Corrige giro del receptor}
     # Solo corrige texto: una línea con el nombre del ítem, sin cantidad ni precio.
     detalle:
       - {NmbItem: Soporte y mantención de sistemas}
 
-  - caso: SIM-9
+  - caso: SIM-20
+    tipo: 61
+    referencia: {caso: SIM-03, CodRef: 1, RazonRef: Anula factura por error en el servicio facturado}
+    detalle: copiar
+
+  - caso: SIM-21
+    tipo: 61
+    referencia: {caso: SIM-10, CodRef: 3, RazonRef: Descuento por horas no realizadas}
+    detalle:
+      - {NmbItem: Taller de programación en Python, QtyItem: 2, UnmdItem: HRS, PrcItem: 40000, IndExe: 1}
+
+  - caso: SIM-22
+    tipo: 61
+    referencia: {caso: SIM-14, CodRef: 3, RazonRef: Devolución de discos defectuosos}
+    detalle:
+      - {NmbItem: Disco SSD usado 512GB, QtyItem: 2, UnmdItem: UN, PrcItem: 18000, CodImpAdic: 15}
+
+  # --- Notas de débito (56) ---
+  - caso: SIM-23
     tipo: 56
-    referencia: {caso: SIM-1, CodRef: 3, RazonRef: Intereses por pago fuera de plazo}
+    referencia: {caso: SIM-01, CodRef: 3, RazonRef: Intereses por pago fuera de plazo}
     detalle:
       - {NmbItem: Intereses por mora, QtyItem: 1, UnmdItem: UN, PrcItem: 25000}
 
-  - caso: SIM-10
-    tipo: 61
-    referencia: {caso: SIM-3, CodRef: 1, RazonRef: Anula factura por error en el servicio facturado}
-    detalle: copiar
+  - caso: SIM-24
+    tipo: 56
+    referencia: {caso: SIM-09, CodRef: 3, RazonRef: Cobro de material adicional del curso}
+    detalle:
+      - {NmbItem: Curso de capacitación en análisis de datos, QtyItem: 1, UnmdItem: UN, PrcItem: 20000, IndExe: 1}
+
+  # --- Notas de exportación (112 y 111) ---
+  - caso: SIM-25
+    tipo: 112
+    encabezado: *exportacion
+    referencia: {caso: SIM-16, CodRef: 3, RazonRef: Descuento por horas no utilizadas}
+    detalle:
+      - {NmbItem: Desarrollo de software a medida, QtyItem: 8, UnmdItem: HRS, PrcItem: 45}
+
+  - caso: SIM-26
+    tipo: 111
+    encabezado: *exportacion
+    referencia: {caso: SIM-17, CodRef: 3, RazonRef: Horas adicionales de consultoría}
+    detalle:
+      - {NmbItem: Consultoría en inteligencia artificial, QtyItem: 4, UnmdItem: HRS, PrcItem: 70}

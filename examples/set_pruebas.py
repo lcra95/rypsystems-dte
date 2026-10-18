@@ -255,6 +255,14 @@ def main() -> None:
                   f"(aceptados {estado['aceptados']}, rechazados {estado['rechazados']}, reparos {estado['reparos']})")
             # Estados finales: procesado, rechazos o códigos numéricos de error (p. ej. 106).
             if estado['estado'] in ('EPR', 'RSC', 'RFR', 'RCT') or (estado['estado'] or '').lstrip('-').isdigit():
+                informados = sum(int(d.get('informados') or 0) for d in estado.get('detalle') or [])
+                if estado['estado'] == 'EPR' and informados < len(set_data['casos']):
+                    # El resumen de QueryEstUp lista solo algunos tipos (se vio con 10 tipos en
+                    # un envío: informó 5); los demás se revisan con QueryEstDte.
+                    tipos_informados = {int(d['tipo_docto']) for d in estado.get('detalle') or []}
+                    faltan = sorted({c['tipo'] for c in set_data['casos']} - tipos_informados)
+                    print(f'  AVISO: el resumen informa {informados} de {len(set_data["casos"])} documentos; '
+                          f'consulte individualmente los tipos {faltan}.')
                 break
 
 
