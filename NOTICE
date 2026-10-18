@@ -1,0 +1,15 @@
+RypSystems DTE
+Copyright (C) 2026 RYP AI SYSTEMS SPA
+
+Este programa es una traducción a Python de LibreDTE (https://www.libredte.cl),
+Copyright (C) SASCO SpA (https://www.sasco.cl), distribuido bajo la GNU Affero
+General Public License versión 3 o posterior. Esta obra derivada se distribuye
+bajo la misma licencia; ver el archivo COPYING.
+
+Los esquemas XSD de src/rypsystems_dte/resources/schemas y los certificados de
+src/rypsystems_dte/resources/certificates son publicados por el Servicio de
+Impuestos Internos de Chile.
+
+Este programa se entrega SIN GARANTÍA ALGUNA; ver la sección 15 de la licencia.
+Si se ofrece como servicio a través de una red, la sección 13 de la licencia
+obliga a ofrecer a sus usuarios el código fuente correspondiente.

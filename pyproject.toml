@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rypsystems-dte"
+version = "0.1.0"
+description = "Documentos tributarios electrónicos (DTE) del SII de Chile: timbraje, firma, envío y consultas"
+readme = "README.md"
+license = {text = "AGPL-3.0-or-later"}
+authors = [{name = "RYP AI SYSTEMS SPA"}]
+requires-python = ">=3.10"
+dependencies = [
+    "cryptography>=41.0.0",
+    "lxml>=4.9.0",
+    "requests>=2.31.0",
+    "pydantic>=2.0.0",
+    "python-barcode>=0.15.0",
+    "pdf417gen>=0.8.0",
+    "pillow>=10.0.0",
+    "jinja2>=3.1.0",
+    "reportlab>=4.0.0",
+    "pyyaml>=6.0",
+    "psutil>=5.9.0",
+]
+classifiers = [
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Programming Language :: Python :: 3",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.0.0", "pytest-timeout>=2.1.0", "zxing-cpp>=2.2.0"]
+
+[tool.setuptools]
+include-package-data = true
+license-files = ["COPYING", "NOTICE"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = true
+exclude = ["*.__pycache__"]
+
+[tool.setuptools.package-data]
+rypsystems_dte = ["resources/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
