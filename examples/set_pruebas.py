@@ -45,7 +45,7 @@ from rypsystems_dte.sii.webservices.soap_service import SoapService  # noqa: E40
 from rypsystems_dte.xml.schema import schema_errors  # noqa: E402
 
 NOMBRES = {33: 'Factura', 34: 'Factura exenta', 46: 'Factura compra', 52: 'Guía despacho',
-           56: 'Nota débito', 61: 'Nota crédito', 110: 'Factura export.', 111: 'ND export.',
+           43: 'Liquidación', 56: 'Nota débito', 61: 'Nota crédito', 110: 'Factura export.', 111: 'ND export.',
            112: 'NC export.'}
 
 
@@ -162,6 +162,7 @@ def main() -> None:
             'Detalle': copy.deepcopy(detalle),
             'DscRcgGlobal': copy.deepcopy(caso.get('descuentos_recargos') or False),
             'Referencia': referencias,
+            'Comisiones': copy.deepcopy(caso.get('comisiones') or False),
         }
 
         bag = DocumentBag(tipo, datos)

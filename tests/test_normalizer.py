@@ -29,7 +29,7 @@ from rypsystems_dte.xml.schema import schema_errors
 
 FIXTURES = Path(__file__).resolve().parents[2] / 'libredte-php-original' / 'tests' / 'fixtures' / 'yaml' / 'documentos_ok'
 CASOS = sorted(FIXTURES.glob('*/*.yaml')) if FIXTURES.is_dir() else []
-NO_SOPORTADOS = (43,)
+NO_SOPORTADOS = ()
 
 
 class TestSemanticaPhp:
@@ -116,9 +116,26 @@ class TestNormalizador:
         assert normalizado['Encabezado']['Receptor']['GiroRecep'] == 'Servicios públicos'
         assert normalizado['Encabezado']['Emisor']['RznSoc'] == 'SASCO SpA'  # no se reemplaza
 
-    def test_tipo_no_soportado(self):
-        with pytest.raises(NormalizerError, match='aún no está soportada'):
-            DocumentNormalizer().normalize(self.datos(), 43)
+    def test_tipo_no_valido(self):
+        with pytest.raises(NormalizerError, match='no es válido'):
+            DocumentNormalizer().normalize(self.datos(), 99)
+
+    def test_liquidacion_factura(self):
+        datos = self.datos()
+        datos['Detalle'] = [
+            {'TpoDocLiq': 33, 'NmbItem': 'NETO FACTURAS', 'QtyItem': 2, 'MontoItem': 10000},
+            {'TpoDocLiq': 33, 'IndExe': 1, 'NmbItem': 'EXENTO FACTURAS', 'QtyItem': 2, 'MontoItem': 3000},
+            {'TpoDocLiq': 60, 'NmbItem': 'NETO NOTA DE CREDITO', 'QtyItem': 1, 'MontoItem': -1000},
+        ]
+        datos['Comisiones'] = [{'Glosa': 'COMISION', 'ValComNeto': 500}]
+        normalizado = DocumentNormalizer().normalize(datos, 43)
+        totales = normalizado['Encabezado']['Totales']
+        assert (totales['MntNeto'], totales['MntExe'], totales['IVA']) == (9000, 3000, 1710)
+        assert totales['Comisiones'] == {'ValComNeto': 500, 'ValComExe': 0, 'ValComIVA': 95}
+        # Neto + exento + IVA - comisiones neto - IVA comisiones - comisiones exentas
+        assert totales['MntTotal'] == 9000 + 3000 + 1710 - 500 - 95
+        assert list(normalizado['Detalle'][0])[:4] == ['NroLinDet', 'CdgItem', 'TpoDocLiq', 'IndExe']
+        assert normalizado['Comisiones'][0]['NroLinCom'] == 1
 
     def test_sanitize(self):
         datos = DocumentNormalizer().normalize(self.datos())

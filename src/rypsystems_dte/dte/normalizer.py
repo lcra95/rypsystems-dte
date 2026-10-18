@@ -14,7 +14,8 @@ Para mantener exactamente los mismos resultados que PHP se replican sus
 semánticas: round() redondea alejándose de cero, false/null/'' suman como 0,
 empty('0') es verdadero y los valores False no generan nodos en el XML.
 
-No soportado aún: liquidación factura (43).
+La liquidación factura (43) no está implementada en LibreDTE PHP; se
+normaliza según el "Formato de Documentos Tributarios Electrónicos" del SII.
 """
 
 import json
@@ -30,7 +31,7 @@ _RESOURCES = Path(__file__).resolve().parent.parent / 'resources' / 'data'
 
 BOLETAS = (39, 41)
 EXPORTACION = (110, 111, 112)
-NO_SOPORTADOS = (43,)
+NO_SOPORTADOS: tuple = ()
 
 
 class NormalizerError(ValueError):
@@ -278,7 +279,7 @@ class DocumentNormalizer:
         codigo = int(codigo)
         if codigo in NO_SOPORTADOS:
             raise NormalizerError(f'La normalización del documento tipo {codigo} aún no está soportada.')
-        if codigo not in (33, 34, 39, 41, 46, 52, 56, 61, 110, 111, 112):
+        if codigo not in (33, 34, 39, 41, 43, 46, 52, 56, 61, 110, 111, 112):
             raise NormalizerError(f'El tipo de documento {codigo} no es válido.')
         data.pop('Test', None)
         self._compat_input(data)
@@ -542,6 +543,19 @@ class DocumentNormalizer:
             self._descuentos_recargos(data, codigo)
             self._iva_mnt_total(data, codigo)
 
+        elif codigo == 43:
+            data = array_replace_recursive({'Encabezado': {
+                'IdDoc': False, 'Emisor': False, 'Receptor': False,
+                'Totales': {
+                    'MntNeto': 0, 'MntExe': 0, 'TasaIVA': tasa, 'IVA': 0, 'IVAProp': False, 'IVATerc': False,
+                    'ImptoReten': False,
+                    'Comisiones': {'ValComNeto': 0, 'ValComExe': 0, 'ValComIVA': 0},
+                    'MntTotal': 0,
+                },
+            }}, data)
+            self._detalle(data, codigo)
+            self._liquidacion(data)
+
         elif codigo in EXPORTACION:
             data = array_replace_recursive({'Encabezado': {
                 'IdDoc': False, 'Emisor': False, 'Receptor': False,
@@ -567,6 +581,43 @@ class DocumentNormalizer:
             self._exportacion(data)
 
         return data
+
+    @staticmethod
+    def _liquidacion(data: Dict[str, Any]) -> None:
+        """
+        Liquidación factura (43), según el formato DTE del SII:
+
+        - Comisiones y otros cargos (obligatoria): IVA = valor neto * tasa IVA;
+          no modifican la base del impuesto de la operación.
+        - MntTotal = MntNeto + MntExe + IVA - ValComNeto - ValComIVA - ValComExe.
+        - Se admiten montos negativos.
+        """
+        totales = data['Encabezado']['Totales']
+        tasa = num(totales.get('TasaIVA'))
+        comisiones = []
+        for i, c in enumerate(as_list(data.get('Comisiones') or []), start=1):
+            c = array_merge({
+                'NroLinCom': i, 'TipoMovim': 'C', 'Glosa': False, 'TasaComision': False,
+                'ValComNeto': 0, 'ValComExe': 0, 'ValComIVA': None,
+            }, c)
+            c['Glosa'] = php_str(c['Glosa'])[:60]
+            if c['ValComIVA'] is None:
+                c['ValComIVA'] = int(php_round(num(c['ValComNeto']) * tasa / 100))
+            comisiones.append(c)
+        data['Comisiones'] = comisiones or False
+
+        resumen = totales['Comisiones']
+        for campo in ('ValComNeto', 'ValComExe', 'ValComIVA'):
+            resumen[campo] = sum(num(c[campo]) for c in comisiones)
+
+        if php_empty(totales.get('IVA')) and tasa:
+            totales['IVA'] = int(php_round(num(totales['MntNeto']) * tasa / 100))
+        if php_empty(totales.get('MntTotal')):
+            totales['MntTotal'] = (
+                num(totales['MntNeto']) + num(totales['MntExe']) + num(totales['IVA'])
+                - resumen['ValComNeto'] - resumen['ValComIVA'] - resumen['ValComExe']
+            )
+        totales['MntTotal'] = php_int(totales['MntTotal'])
 
     @staticmethod
     def _exportacion(data: Dict[str, Any]) -> None:
@@ -625,7 +676,7 @@ class DocumentNormalizer:
         detalles = []
         for item, d in enumerate(as_list(data['Detalle']), start=1):
             d = array_merge({
-                'NroLinDet': item, 'CdgItem': False, 'IndExe': False, 'Retenedor': False,
+                'NroLinDet': item, 'CdgItem': False, 'TpoDocLiq': False, 'IndExe': False, 'Retenedor': False,
                 'NmbItem': False, 'DscItem': False, 'QtyRef': False, 'UnmdRef': False, 'PrcRef': False,
                 'QtyItem': False, 'Subcantidad': False, 'FchElabor': False, 'FchVencim': False,
                 'UnmdItem': False, 'PrcItem': False, 'DescuentoPct': False, 'DescuentoMonto': False,

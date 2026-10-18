@@ -1,0 +1,54 @@
+# SET BASICO LIQUIDACIONES - NUMERO DE ATENCION: 5136572
+# Según el "Formato de Documentos Tributarios Electrónicos" del SII:
+# - TpoDocLiq: tipo del documento que se liquida (30 factura, 33 factura
+#   electrónica, 35 boleta, 43 liquidación factura electrónica, 60 nota de
+#   crédito) o 99 en caso de anticipo u otras transacciones.
+# - CANTIDAD = QtyItem y TOTAL LINEA = MontoItem. Las líneas EXENTO llevan IndExe 1.
+# - Comisiones y otros cargos (obligatoria): IVA de la comisión = valor * 19 %.
+# - MntTotal = MntNeto + MntExe + IVA - comisiones (neto + IVA + exento).
+# Supuestos: "NOTA DE CRÉDITO" sin "ELECTRÓNICA" = 60 (papel); "BOLETAS" = 35.
+numero_atencion: 5136572
+casos:
+  - caso: 5136572-1
+    tipo: 43
+    detalle:
+      - {TpoDocLiq: 30, NmbItem: NETO FACTURAS, QtyItem: 2, MontoItem: 81393}
+      - {TpoDocLiq: 30, IndExe: 1, NmbItem: EXENTO FACTURAS, QtyItem: 2, MontoItem: 27134}
+      - {TpoDocLiq: 33, NmbItem: NETO FACTURAS ELECTRONICAS, QtyItem: 6, MontoItem: 20709}
+      - {TpoDocLiq: 33, IndExe: 1, NmbItem: EXENTO FACTURAS ELECTRONICAS, QtyItem: 5, MontoItem: 19995}
+
+  - caso: 5136572-2
+    tipo: 43
+    detalle:
+      - {TpoDocLiq: 33, NmbItem: NETO FACTURA ELECTRÓNICA 4254, QtyItem: 1, MontoItem: 14181}
+      - {TpoDocLiq: 33, IndExe: 1, NmbItem: EXENTO FACTURA ELECTRÓNICA 4254, QtyItem: 1, MontoItem: 11496}
+      - {TpoDocLiq: 33, NmbItem: NETO FACTURA ELECTRÓNICA 4768, QtyItem: 1, MontoItem: 76380}
+      - {TpoDocLiq: 33, IndExe: 1, NmbItem: EXENTO FACTURA ELECTRÓNICA 4768, QtyItem: 1, MontoItem: 48401}
+      - {TpoDocLiq: 60, NmbItem: NETO NOTA DE CRÉDITO 328, QtyItem: 1, MontoItem: -14418}
+      - {TpoDocLiq: 60, IndExe: 1, NmbItem: EXENTO NOTA DE CRÉDITO 328, QtyItem: 1, MontoItem: -10865}
+      - {TpoDocLiq: 35, NmbItem: BOLETAS, QtyItem: 893, MontoItem: 672882}
+
+  - caso: 5136572-3
+    tipo: 43
+    detalle:
+      - {TpoDocLiq: 33, NmbItem: NETO FACTURA ELECTRÓNICA 1515, QtyItem: 1, MontoItem: 49266}
+      - {TpoDocLiq: 33, NmbItem: NETO FACTURAS ELECTRÓNICAS, QtyItem: 33, MontoItem: 24917}
+      - {TpoDocLiq: 33, IndExe: 1, NmbItem: EXENTO FACTURAS ELECTRÓNICAS, QtyItem: 6, MontoItem: 21360}
+    comisiones:
+      - {TipoMovim: C, Glosa: NETO COMISIÓN FIJA, ValComNeto: 421}
+      - {TipoMovim: C, Glosa: NETO COMISIÓN VARIABLE, ValComNeto: 1246}
+
+  - caso: 5136572-4
+    tipo: 43
+    detalle:
+      - {TpoDocLiq: 99, NmbItem: NETO ANTICIPO FACTURACIÓN, QtyItem: 33, MontoItem: 550000}
+      - {TpoDocLiq: 30, NmbItem: NETO FACTURAS, QtyItem: 6, MontoItem: 47160}
+      - {TpoDocLiq: 30, IndExe: 1, NmbItem: EXENTO FACTURAS, QtyItem: 7, MontoItem: 208950}
+      - {TpoDocLiq: 33, NmbItem: NETO FACTURAS ELECTRÓNICAS, QtyItem: 6, MontoItem: 20410}
+      - {TpoDocLiq: 33, IndExe: 1, NmbItem: EXENTO FACTURAS ELECTRÓNICAS, QtyItem: 3, MontoItem: 174374}
+      - {TpoDocLiq: 60, NmbItem: NETO NOTA DE CRÉDITO 1981, QtyItem: 1, MontoItem: -18925}
+      - {TpoDocLiq: 43, NmbItem: NETO LIQUIDACIÓN FACTURA ELECTRÓNICA 4554, QtyItem: 1, MontoItem: -24229}
+      - {TpoDocLiq: 43, IndExe: 1, NmbItem: EXENTO LIQUIDACIÓN FACTURA ELECTRÓNICA 4554, QtyItem: 1, MontoItem: -24351}
+    comisiones:
+      - {TipoMovim: C, Glosa: NETO COMISIÓN CONSIGNACION, ValComNeto: 322}
+      - {TipoMovim: C, Glosa: NETO COMISIONES LIQUIDACIÓN FACTURA ELECTRÓNICA 4554, ValComNeto: -1211}
