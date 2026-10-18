@@ -1,0 +1,30 @@
+# Factura emitida a la propia empresa en certificación, para probar el
+# registro de aceptación o reclamo (Ley 20.956) como receptor.
+nombre: prueba_reclamo
+referencia_set: false
+casos:
+  - caso: RECLAMO-01
+    tipo: 33
+    receptor:
+      RUTRecep: 78532566-4
+      RznSocRecep: RYP AI SYSTEMS SPA
+      GiroRecep: Servicios informaticos
+      DirRecep: Gran Avenida 6250 DP 1801
+      CmnaRecep: San Miguel
+    encabezado: {IdDoc: {FmaPago: 1}}
+    detalle:
+      - {NmbItem: Prueba de aceptacion de DTE, QtyItem: 1, UnmdItem: UN, PrcItem: 10000}
+
+  # Las facturas al contado (FmaPago 1) quedan con evento PAG y el SII no
+  # permite aceptarlas ni reclamarlas (codResp 27); se emite una a crédito.
+  - caso: RECLAMO-02
+    tipo: 34
+    receptor:
+      RUTRecep: 78532566-4
+      RznSocRecep: RYP AI SYSTEMS SPA
+      GiroRecep: Servicios informaticos
+      DirRecep: Gran Avenida 6250 DP 1801
+      CmnaRecep: San Miguel
+    encabezado: {IdDoc: {FmaPago: 2, FchVenc: '2026-11-17'}}
+    detalle:
+      - {NmbItem: Prueba de aceptacion de DTE a credito, QtyItem: 1, UnmdItem: UN, PrcItem: 10000, IndExe: 1}

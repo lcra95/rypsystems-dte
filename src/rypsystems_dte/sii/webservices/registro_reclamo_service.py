@@ -48,6 +48,21 @@ ACCIONES = {
 }
 RECLAMOS = ('RCD', 'RFP', 'RFT')
 
+# codResp observados en el servicio de certificación (el SII entrega además su
+# glosa en descResp). Las facturas al contado o gratuitas quedan con el evento
+# PAG al ser recibidas y no se pueden aceptar ni reclamar (27).
+CODIGOS_RESPUESTA = {
+    0: 'Acción completada OK',
+    7: 'Evento registrado previamente',
+    15: 'Listado de eventos del documento',
+    16: 'Documento no presenta eventos de reclamos o acuse de recibo',
+    17: 'Acción autorizada solo para empresa receptora',
+    18: 'Documento no ha sido recibido',
+    22: 'No existe registro de reclamo o de recepción de mercaderías o servicios',
+    23: 'DTE cedible, sin reclamos',
+    27: 'No se puede registrar un evento de un DTE pagado al contado o gratuito',
+}
+
 # Documentos sobre los que se puede aceptar o reclamar.
 TIPOS_DOCUMENTO = (33, 34, 43)
 
