@@ -9,6 +9,7 @@ Basado en la implementación PHP original de AbstractDocument::getPlantillaTED()
 
 from typing import Dict, Any, Optional, Union
 from datetime import datetime
+import re
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import hashlib
@@ -594,3 +595,19 @@ def generate_ted_barcode_from_data(ted_data: TEDData) -> str:
     builder = TEDBuilder()
     template = builder.build_ted_template(ted_data)
     return builder.generate_ted_barcode(template)
+
+_DD_RE = re.compile(rb'<DD>.*?</DD>', re.DOTALL)
+_EMPTY_TAG_RE = re.compile(rb'<([A-Za-z0-9]+)/>')
+
+
+def expand_empty_dd_tags(xml: bytes) -> bytes:
+    """
+    Escribe los nodos vacíos del DD de cada timbre como <RSR></RSR>.
+
+    El DD se firma canonicalizado (C14N), donde un nodo vacío es <RSR></RSR>,
+    pero el SII verifica el timbre sobre el texto del DD tal como viene en el
+    XML: un <RSR/> (p. ej. una boleta sin razón social del receptor) produce el
+    reparo 510 "Firma Timbre Electrónico Incorrecta". Se aplica después de
+    firmar el XML, ya que la firma XML (C14N) no distingue ambas formas.
+    """
+    return _DD_RE.sub(lambda m: _EMPTY_TAG_RE.sub(rb'<\1></\1>', m.group(0)), xml)

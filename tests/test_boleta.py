@@ -142,3 +142,23 @@ def test_envio_requiere_token_y_envio_boleta(servicio, certificado):
     servicio.authenticate(certificado)
     with pytest.raises(SiiValidationError):
         servicio.upload('11222333-9', '76192083-9', b'<EnvioDTE/>')
+
+
+def test_timbre_verificable_sobre_el_texto_del_xml(boletas, certificado):
+    """El SII verifica el DD tal cual viene en el XML (reparo 510 con <RSR/>)."""
+    import base64
+    import re
+
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import padding
+
+    sobre = DocumentEnvelope(certificado, '2026-10-17', 0)
+    for b in boletas:
+        sobre.add_document(b.get_xml())
+    xml = sobre.build()
+    assert b'<RSR/>' not in xml and xml.count(b'<RSR></RSR>') == len(boletas)
+    assert XmlSigner().is_valid_xml(xml)
+    for b, dd, frmt in zip(boletas, re.findall(rb'<DD>.*?</DD>', xml, re.S),
+                           re.findall(rb'<FRMT[^>]*>([^<]*)</FRMT>', xml)):
+        texto = re.sub(rb'>\s+<', b'><', dd)
+        b.get_caf().get_public_key().verify(base64.b64decode(frmt), texto, padding.PKCS1v15(), hashes.SHA1())

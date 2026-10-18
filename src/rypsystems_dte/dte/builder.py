@@ -5,17 +5,19 @@ Implementación Python de BuilderStrategy de LibreDTE.
 Maneja la construcción, normalización, validación y firma de documentos DTE.
 """
 
+import re
 from typing import Dict, Any, Optional, Type, List
 from abc import ABC, abstractmethod
 from datetime import datetime
 
 from ..xml.document import XmlDocument, DocumentBuilder as XmlDocumentBuilder
 from ..xml.encoder import XmlEncoder, save_xml
-from ..firma.ted import TEDBuilder, TEDError, stamp_document_data
+from ..firma.ted import TEDBuilder, TEDError, expand_empty_dd_tags, stamp_document_data
 from .document import BaseDocument, DOCUMENT_CLASSES
 from .bag import DocumentBag
 from .normalizer import NO_SOPORTADOS, DocumentNormalizer, NormalizerError
 from ..sii.constants import CodigoDocumento
+
 
 
 class DocumentProcessor:
@@ -369,7 +371,7 @@ class DTEBuilder:
         """
         self._ensure_tipo_dte(bag)
         if bag.get_xml() is None:
-            bag.set_xml(save_xml(XmlEncoder().encode(self._document_data(bag))))
+            bag.set_xml(expand_empty_dd_tags(save_xml(XmlEncoder().encode(self._document_data(bag)))))
 
         return XmlDocument(bag.get_xml())
 
@@ -472,7 +474,8 @@ class DTEBuilder:
             )
 
         xml = save_xml(XmlEncoder().encode(self._document_data(bag, timestamp)))
-        bag.set_xml(XmlSigner().sign_xml(xml, certificate, bag.get_id()))
+        # Después de firmar: la firma (C14N) no distingue <RSR/> de <RSR></RSR>.
+        bag.set_xml(expand_empty_dd_tags(XmlSigner().sign_xml(xml, certificate, bag.get_id())))
         bag.set_signed(True)
 
     def _generate_ted_template(self, bag: DocumentBag) -> Dict[str, Any]:

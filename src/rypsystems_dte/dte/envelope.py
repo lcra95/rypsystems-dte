@@ -14,6 +14,7 @@ from typing import List, Optional, Union
 from lxml import etree
 
 from ..firma.digital_certificate import DigitalCertificate
+from ..firma.ted import expand_empty_dd_tags
 from ..firma.xml_signer import XmlSigner
 from ..xml.encoder import XmlEncoder, save_xml
 
@@ -190,4 +191,4 @@ class DocumentEnvelope:
             raise EnvelopeError('No fue posible ubicar los documentos dentro del sobre.')
         xml = base.replace(b'<DTE/>', b'\n'.join(self._documents))
 
-        return XmlSigner().sign_xml(xml, certificate, SET_ID, xmlns_xsi=True)
+        return expand_empty_dd_tags(XmlSigner().sign_xml(xml, certificate, SET_ID, xmlns_xsi=True))
