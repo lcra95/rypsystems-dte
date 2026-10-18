@@ -2,6 +2,8 @@
 # (servicios de tecnologías de la información, Acteco 620900).
 # Sin referencia SET: deben verse como documentos de una operación normal.
 # Los receptores rotan entre los de empresa_certificacion.yaml.
+# Solo tipos que la empresa emite; la factura exenta (34) ya quedó probada en
+# el set de factura exenta aprobado por el SII.
 nombre: simulacion
 referencia_set: false
 casos:
@@ -39,12 +41,6 @@ casos:
       - {NmbItem: Capacitación de usuarios, QtyItem: 4, UnmdItem: HRS, PrcItem: 45000}
     descuentos_recargos:
       - {TpoMov: D, GlosaDR: Descuento cliente frecuente, TpoValor: '%', ValorDR: 5}
-
-  - caso: SIM-6
-    tipo: 34
-    encabezado: {IdDoc: {FmaPago: 1}}
-    detalle:
-      - {NmbItem: Curso de capacitación en análisis de datos, QtyItem: 1, UnmdItem: UN, PrcItem: 380000, IndExe: 1}
 
   - caso: SIM-7
     tipo: 61
