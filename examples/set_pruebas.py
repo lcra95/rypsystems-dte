@@ -32,7 +32,6 @@ la API REST de boletas del SII.
 """
 
 import argparse
-import copy
 import json
 import sys
 import time
@@ -45,12 +44,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 
 from rypsystems_dte import (  # noqa: E402
-    Caf, CafValidator, ClienteSii, DigitalCertificate, EmisionError, SiiEnvironment, armar_envio, emitir_documento,
+    Caf, CafValidator, ClienteSii, DigitalCertificate, EmisionError, SiiEnvironment, armar_envio,
 )
+from rypsystems_dte.certificacion.emision import emitir_set  # noqa: E402
 from rypsystems_dte.sii.webservices import BoletaService  # noqa: E402
 
 BOLETAS = (39, 41)
-RECEPTOR_BOLETA = {'RUTRecep': '66666666-6'}
 NOMBRES = {39: 'Boleta', 41: 'Boleta exenta', 33: 'Factura', 34: 'Factura exenta', 46: 'Factura compra', 52: 'Guía despacho',
            43: 'Liquidación', 56: 'Nota débito', 61: 'Nota crédito', 110: 'Factura export.', 111: 'ND export.',
            112: 'NC export.'}
@@ -114,87 +113,33 @@ def main() -> None:
         cafs[tipo] = caf
         folios[tipo] = inicio.get(tipo, max(caf.get_folio_desde(), registro.get(tipo, 0) + 1))
 
-    hoy = datetime.now().strftime('%Y-%m-%d')
-    referencia_set = set_data.get('referencia_set', True)
     nombre_set = set_data.get('nombre') or f'set_{set_data["numero_atencion"]}'
     boletas = all(t in BOLETAS for t in tipos)
-    if not boletas and any(t in BOLETAS for t in tipos):
-        fail('Un set no puede mezclar boletas con otros documentos.')
-    emitidos = {}  # caso -> datos del documento emitido
-    # "Utilice RUT distintos para las distintas facturas": los documentos
-    # originales rotan entre los receptores; las notas usan el del referenciado.
-    receptores = empresa.get('receptores') or [empresa['receptor']]
-    siguiente_receptor = 0
-    documentos = []
+
+    def asignar_folio(tipo):
+        folio = folios[tipo]
+        if not cafs[tipo].en_rango(folio):
+            fail(f'No quedan folios del tipo {tipo} en el CAF {cafs[tipo].get_id()}.')
+        folios[tipo] += 1
+        return cafs[tipo], folio
 
     print(f'{nombre_set} - emisor {empresa["emisor"]["RUTEmisor"]}, '
           f'envía {certificate.get_id()} {certificate.get_name()}\n')
     print(f'{"Caso":<12} {"Documento":<15} {"Folio":>6} {"Neto":>12} {"Exento":>10} {"IVA":>11} {"Total":>12}  '
           f'{"Receptor":<11} Referencia')
-
-    for caso in set_data['casos']:
-        tipo = caso['tipo']
-        folio = folios[tipo]
-        if not cafs[tipo].en_rango(folio):
-            fail(f'No quedan folios del tipo {tipo} en el CAF {cafs[tipo].get_id()}.')
-        folios[tipo] += 1
-
-        detalle = caso['detalle']
-        ref = caso.get('referencia')
-        if detalle == 'copiar':
-            detalle = copy.deepcopy(emitidos[ref['caso']]['detalle'])
-
-        referencias = [{
-            'TpoDocRef': 'SET', 'FolioRef': folio, 'FchRef': hoy, 'RazonRef': f'CASO {caso["caso"]}',
-        }] if referencia_set and not boletas else []
-        if referencia_set and boletas:
-            referencias = [{'CodRef': 'SET', 'RazonRef': caso['caso']}]
-        # Otras referencias (DUS, AWB, MIC...) a partir de la línea 2.
-        referencias += copy.deepcopy(caso.get('referencias_extra') or [])
-        texto_ref = ''
-        if ref:
-            original = emitidos[ref['caso']]
-            receptor = dict(original['receptor'])
-        elif caso.get('receptor'):
-            receptor = dict(caso['receptor'])
-        elif boletas:
-            receptor = dict(RECEPTOR_BOLETA)
-        else:
-            receptor = dict(receptores[siguiente_receptor % len(receptores)])
-            siguiente_receptor += 1
-        if ref:
-            # El documento referenciado va antes de las otras referencias (SNA, DUS...).
-            referencias.insert(1 if referencia_set and not boletas else 0, {
-                'TpoDocRef': original['tipo'], 'FolioRef': original['folio'], 'FchRef': original['fecha'],
-                'CodRef': ref['CodRef'], 'RazonRef': ref['RazonRef'],
-            })
-            texto_ref = f'{NOMBRES[original["tipo"]]} {original["folio"]} (CodRef {ref["CodRef"]})'
-
-        encabezado = copy.deepcopy(caso.get('encabezado') or {})
-        datos = {
-            'Encabezado': {
-                'IdDoc': {'TipoDTE': tipo, 'Folio': folio, 'FchEmis': hoy, **encabezado.pop('IdDoc', {})},
-                'Emisor': dict(empresa['emisor']),
-                'Receptor': receptor,
-                **encabezado,
-            },
-            'Detalle': copy.deepcopy(detalle),
-            'DscRcgGlobal': copy.deepcopy(caso.get('descuentos_recargos') or False),
-            'Referencia': referencias or False,
-            'Comisiones': copy.deepcopy(caso.get('comisiones') or False),
-        }
-
-        try:
-            documento = emitir_documento(datos, cafs[tipo], certificate)
-        except EmisionError as e:
-            fail(f'Caso {caso["caso"]}: {e}')
-        totales, rut_recep = documento.totales, documento.receptor
-        print(f'{caso["caso"]:<12} {NOMBRES[tipo]:<15} {folio:>6} {miles(totales.get("MntNeto")):>12} '
-              f'{miles(totales.get("MntExe")):>10} {miles(totales.get("IVA")):>11} {miles(totales.get("MntTotal")):>12}  '
-              f'{rut_recep:<11} {texto_ref}')
-
-        emitidos[caso['caso']] = {'tipo': tipo, 'folio': folio, 'fecha': hoy, 'detalle': detalle,
-                                  'receptor': datos['Encabezado']['Receptor']}
+    try:
+        emitidos = emitir_set(set_data, empresa['emisor'], certificate, asignar_folio,
+                              receptores=empresa.get('receptores') or [empresa['receptor']])
+    except EmisionError as e:
+        fail(str(e))
+    documentos = []
+    for emitido in emitidos:
+        documento, ref = emitido.documento, emitido.referencia
+        totales = documento.totales
+        texto_ref = f'{NOMBRES[ref["tipo"]]} {ref["folio"]} (CodRef {ref["CodRef"]})' if ref else ''
+        print(f'{emitido.caso:<12} {NOMBRES[documento.tipo]:<15} {documento.folio:>6} '
+              f'{miles(totales.get("MntNeto")):>12} {miles(totales.get("MntExe")):>10} {miles(totales.get("IVA")):>11} '
+              f'{miles(totales.get("MntTotal")):>12}  {documento.receptor:<11} {texto_ref}')
         documentos.append(documento)
 
     try:

@@ -84,3 +84,71 @@ def test_tipo_de_cambio_y_errores():
         leer_set_pruebas('no es un set')
     with pytest.raises(SetPruebasError):
         leer_set_boletas('tampoco')
+
+
+def test_emite_todos_los_sets_leidos():
+    """Texto del SII → casos → documentos timbrados, firmados y válidos según el esquema."""
+    from rypsystems_dte import armar_envio
+    from rypsystems_dte.certificacion.emision import emitir_set
+    from rypsystems_dte.firma import SelfSignedCertificate
+    from rypsystems_dte.identifier import CafFaker
+
+    certificado = SelfSignedCertificate().create()
+    emisor = {'RUTEmisor': '76192083-9', 'RznSoc': 'SASCO SpA', 'GiroEmis': 'Servicios', 'Acteco': 620900,
+              'DirOrigen': 'Santa Cruz', 'CmnaOrigen': 'Santa Cruz'}
+    receptores = [{'RUTRecep': '60803000-K', 'RznSocRecep': 'SII', 'GiroRecep': 'Gobierno', 'DirRecep': 'Teatinos 120',
+                   'CmnaRecep': 'Santiago'}]
+    cafs, folios = {}, {}
+
+    def asignar_folio(tipo):
+        if tipo not in cafs:
+            cafs[tipo] = CafFaker(rut=emisor['RUTEmisor'], tipo_documento=tipo, desde=1, hasta=50).create()
+            folios[tipo] = 1
+        folios[tipo] += 1
+        return cafs[tipo], folios[tipo] - 1
+
+    texto = (FIXTURES / 'SIISetDePruebas785325664.txt').read_bytes()
+    sets = [s for s in leer_set_pruebas(texto) if 'casos' in s and isinstance(s['casos'], list)]
+    sets.append(leer_set_boletas((FIXTURES / 'set_prueba_boleta.txt').read_bytes()))
+    for set_datos in sets:
+        emitidos = emitir_set(set_datos, emisor, certificado, asignar_folio, receptores)
+        assert [e.caso for e in emitidos] == [c['caso'] for c in set_datos['casos']]
+        envio = armar_envio([e.documento for e in emitidos], certificado, '2026-10-17', 0)
+        assert envio
+    notas = [e for e in emitidos if e.referencia]
+    assert not notas  # el set de boletas no tiene notas
+
+
+def test_libros_y_muestras_del_set():
+    from rypsystems_dte.certificacion import emitir_set, libro_compras, libro_guias, libro_ventas, muestras_impresas
+    from rypsystems_dte.firma import SelfSignedCertificate
+    from rypsystems_dte.identifier import CafFaker
+
+    certificado = SelfSignedCertificate().create()
+    rut = '76192083-9'
+    emisor = {'RUTEmisor': rut, 'RznSoc': 'SASCO SpA', 'GiroEmis': 'Servicios', 'Acteco': 620900,
+              'DirOrigen': 'Santa Cruz', 'CmnaOrigen': 'Santa Cruz'}
+    receptores = [{'RUTRecep': '60803000-K', 'RznSocRecep': 'SII', 'GiroRecep': 'Gobierno', 'DirRecep': 'Teatinos 120',
+                   'CmnaRecep': 'Santiago'}]
+    cafs, folios = {}, {}
+
+    def asignar_folio(tipo):
+        cafs.setdefault(tipo, CafFaker(rut=rut, tipo_documento=tipo, desde=1, hasta=50).create())
+        folios[tipo] = folios.get(tipo, 0) + 1
+        return cafs[tipo], folios[tipo]
+
+    sets = {s['numero_atencion']: s for s in leer_set_pruebas((FIXTURES / 'SIISetDePruebas785325664.txt').read_bytes())}
+    basico = emitir_set(sets[5136564], emisor, certificado, asignar_folio, receptores)
+    guias = emitir_set(sets[5136567], emisor, certificado, asignar_folio, receptores)
+
+    ventas = libro_ventas([e.documento.xml for e in basico], certificado, rut, '2026-10-17')
+    periodo = basico[0].documento.fecha[:7]
+    compras = libro_compras(sets[5136566], periodo, certificado, rut, '2026-10-17')
+    libro = libro_guias([e.documento.xml for e in guias], sets[5136568], certificado, rut, '2026-10-17',
+                        factura={'TpoDocRef': 33, 'FolioDocRef': basico[0].documento.folio})
+    assert b'<TipoOperacion>VENTA' in ventas and b'<TipoOperacion>COMPRA' in compras
+    assert b'<Anulado>2</Anulado>' in libro
+
+    pdfs = muestras_impresas([e.documento.xml for e in basico], '2026-10-17')
+    # 8 documentos; copia cedible solo de las facturas (4)
+    assert len(pdfs) == 12 and all(p.startswith(b'%PDF') for p in pdfs.values())

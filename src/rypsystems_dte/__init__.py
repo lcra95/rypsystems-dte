@@ -13,7 +13,7 @@ Uso básico:
     track_id = ClienteSii(certificado).enviar(envio, doc.emisor)
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "RYP AI SYSTEMS SPA"
 __description__ = "Documentos tributarios electrónicos (DTE) del SII de Chile"
 
