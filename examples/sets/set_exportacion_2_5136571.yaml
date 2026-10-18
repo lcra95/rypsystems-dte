@@ -6,6 +6,9 @@
 #   KN: unidad 6 | PAR: unidad 17 | PLANCHAS: bulto 89 | ITALIA: país 504
 #   RESOLUCION SNA: TpoDocRef 812 | DUS: 807 | AWB: 809
 # IndServicio: 3 servicios de exportación, 4 hotelería.
+# Montos de línea: MontoItem = PrcItem * QtyItem - DescuentoMonto + RecargoMonto,
+# con DescuentoMonto y RecargoMonto enteros (el SII recalcula la línea con esa
+# fórmula; con el porcentaje exacto rechazó los casos 1 y 2).
 # El SII exige la sección OtraMoneda con los montos en pesos chilenos
 # (HED-3-834) y las marcas de los bultos (HED-2-804). Tipos de cambio
 # referenciales para certificación (en producción: tipo de cambio del día).
@@ -92,3 +95,7 @@ casos:
       OtraMoneda: {TpoMoneda: PESO CL, TpoCambio: 950}
     detalle:
       - {NmbItem: ALOJAMIENTO HABITACIONES, QtyItem: 1, PrcItem: 169}
+    # Servicio de hotelería a extranjero: el SII exige una segunda referencia
+    # ("El Documento Debe Tener 2 Linea(s) de Referencia"): pasaporte (813).
+    referencias_extra:
+      - {TpoDocRef: 813, FolioRef: YA1234567, RazonRef: PASAPORTE}
