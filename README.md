@@ -47,6 +47,8 @@ Reglas:
 - **Sin estado global ni archivos.** El folio, el CAF y el certificado los entrega quien llama, porque asignar folios sin repetirlos es responsabilidad de la aplicación.
 - **Errores:** todos heredan de `RypDteError`. `EmisionError` cubre los datos, el CAF, el esquema, el timbre y la firma; `SiiWebServiceException`, la comunicación con el SII.
 
+Boletas: cada boleta se envía al SII por su API REST. El Resumen de Ventas Diarias (antes Reporte de Consumo de Folios) dejó de enviarse desde el 1 de agosto de 2022 (Res. Ex. SII N° 53 de 2022), así que no se genera.
+
 Otros módulos:
 - `rypsystems_dte.intercambio`: EnvioDTE recibidos, respuestas y recibos de mercaderías.
 - `RegistroReclamoService`: aceptar o reclamar documentos recibidos y consultar sus eventos.
