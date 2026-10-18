@@ -28,6 +28,7 @@ from lxml import etree
 
 from .dte import DocumentBag, DocumentEnvelope, DTEBuilder
 from .errors import RypDteError
+from .tipo_cambio import ProveedorTipoCambio, TipoCambioError, completar_tipo_cambio
 from .firma import DigitalCertificate, XmlSigner
 from .firma.ted import TEDValidator
 from .identifier import Caf
@@ -140,7 +141,7 @@ def documento_a_datos(xml: bytes) -> Dict[str, Any]:
 
 
 def emitir_documento(datos: Dict[str, Any], caf: Caf, certificado: DigitalCertificate, *,
-                     validar: bool = True) -> DocumentoEmitido:
+                     validar: bool = True, tipo_cambio: Optional[ProveedorTipoCambio] = None) -> DocumentoEmitido:
     """
     Normaliza, timbra y firma un documento.
 
@@ -152,6 +153,8 @@ def emitir_documento(datos: Dict[str, Any], caf: Caf, certificado: DigitalCertif
         certificado: Certificado con el que se firma el DTE.
         validar: Valida esquema (DTE_v10; las boletas se validan dentro del
             EnvioBOLETA), timbre y firma.
+        tipo_cambio: Proveedor del tipo de cambio (rypsystems_dte.tipo_cambio)
+            para los documentos de exportación que no traen TpoCambio.
 
     Raises:
         EmisionError
@@ -171,6 +174,11 @@ def emitir_documento(datos: Dict[str, Any], caf: Caf, certificado: DigitalCertif
 
     datos = copy.deepcopy(datos)
     datos['Encabezado']['IdDoc'].setdefault('FchEmis', date.today().isoformat())
+    if tipo_cambio is not None:
+        try:
+            completar_tipo_cambio(datos, tipo_cambio)
+        except TipoCambioError as e:
+            raise EmisionError(f'T{tipo} F{folio}: {e}') from e
     bag = DocumentBag(tipo, datos)
     bag.set_caf(caf)
     bag.set_certificate(certificado)

@@ -19,6 +19,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 from ..emision import BOLETAS, DocumentoEmitido, EmisionError, emitir_documento
 from ..firma import DigitalCertificate
 from ..identifier import Caf
+from ..tipo_cambio import ProveedorTipoCambio
 
 RECEPTOR_BOLETA = {'RUTRecep': '66666666-6'}
 
@@ -32,7 +33,7 @@ class CasoEmitido:
 
 def emitir_set(set_datos: Dict[str, Any], emisor: Dict[str, Any], certificado: DigitalCertificate,
                asignar_folio: Callable[[int], Tuple[Caf, int]], receptores: Iterable[Dict[str, Any]] = (),
-               fecha: Optional[str] = None) -> List[CasoEmitido]:
+               fecha: Optional[str] = None, tipo_cambio: Optional[ProveedorTipoCambio] = None) -> List[CasoEmitido]:
     """
     Emite todos los casos de un set, en orden.
 
@@ -44,6 +45,7 @@ def emitir_set(set_datos: Dict[str, Any], emisor: Dict[str, Any], certificado: D
             controla qué folios se usan.
         receptores: Receptores que rotan en los documentos originales (no
             se usan en boletas ni en casos que traen su propio receptor).
+        tipo_cambio: Proveedor del tipo de cambio para la exportación sin TpoCambio.
 
     Raises:
         EmisionError: indicando el caso que falló.
@@ -116,7 +118,7 @@ def emitir_set(set_datos: Dict[str, Any], emisor: Dict[str, Any], certificado: D
             'Comisiones': copy.deepcopy(caso.get('comisiones') or False),
         }
         try:
-            documento = emitir_documento(datos, caf, certificado)
+            documento = emitir_documento(datos, caf, certificado, tipo_cambio=tipo_cambio)
         except EmisionError as e:
             raise EmisionError(f'Caso {caso["caso"]}: {e}') from e
         emitidos[caso['caso']] = {'tipo': tipo, 'folio': folio, 'fecha': fecha, 'detalle': detalle,

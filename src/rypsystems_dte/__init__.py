@@ -13,7 +13,7 @@ Uso básico:
     track_id = ClienteSii(certificado).enviar(envio, doc.emisor)
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __author__ = "RYP AI SYSTEMS SPA"
 __description__ = "Documentos tributarios electrónicos (DTE) del SII de Chile"
 
@@ -34,6 +34,7 @@ from .emision import (
 )
 from .intercambio import EnvioRecibido, EnvioRecibos, IntercambioError, RespuestaEnvio
 from .pdf import DtePdf, DtePdfTermico
+from .tipo_cambio import BancoCentral, TipoCambioError, TiposCambioFijos
 
 __all__ = [
     # Emisión
@@ -44,10 +45,13 @@ __all__ = [
     'SiiEnvironment', 'SiiAmbiente', 'RegistroReclamoService',
     # Intercambio
     'EnvioRecibido', 'RespuestaEnvio', 'EnvioRecibos',
+    # Tipo de cambio
+    'BancoCentral', 'TiposCambioFijos',
     # PDF
     'DtePdf', 'DtePdfTermico',
     # Contribuyentes
     'Contribuyente', 'PartyIdentifier',
     # Errores
     'RypDteError', 'EmisionError', 'CertificateError', 'CafError', 'IntercambioError', 'SiiWebServiceException',
+    'TipoCambioError',
 ]

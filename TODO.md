@@ -13,7 +13,7 @@ Estado al 2026-10-18. El plan completo está en `~/.claude/plans/jaunty-growing-
 - **Certificación de RYP AI SYSTEMS:** set de pruebas, simulación e intercambio aprobados; muestras impresas en revisión del SII.
 
 ## Core (Fase 0)
-- [ ] Tipo de cambio oficial (dólar observado) como proveedor que se inyecta; hoy `TpoCambio` va en los datos.
+- [x] Tipo de cambio oficial: `rypsystems_dte.tipo_cambio` (BDE del Banco Central; series de monedas distintas del dólar por configurar con `buscar_series`).
 - [ ] Confirmar si las boletas exigen hoy el Resumen de Ventas Diarias (aparece en el menú del SII) e implementarlo si corresponde.
 - [ ] Prueba en vivo de los hosts de producción: solo autenticación y consultas.
 - [ ] `libros_certificacion.py`, `libro_guias_certificacion.py` y `muestras_impresion.py` siguen con su propia lógica; podrían usar `rypsystems_dte.certificacion`.
