@@ -124,13 +124,17 @@ class EnvioRecibido:
         ted = ted_pdf417(dte)
         return bool(ted) and TEDValidator.verify_ted_signature(ted)
 
-    def validar(self, rut_receptor: str, validar_schema: bool = True) -> 'EnvioRecibido':
+    def validar(self, rut_receptor: str, validar_schema: bool = True,
+                validar_timbre: bool = True) -> 'EnvioRecibido':
         """
         Valida el envío y sus documentos y asigna los estados de recepción.
 
         Args:
             rut_receptor: RUT de quien recibe (el contribuyente que responde)
             validar_schema: Validar contra EnvioDTE_v10.xsd
+            validar_timbre: Verificar la firma del TED con la clave del CAF. Los
+                documentos del set de intercambio del SII traen un timbre que no
+                verifica (se generan con la fecha del día y el receptor).
         """
         rut_receptor = _normalizar_rut(rut_receptor)
         tag = etree.QName(self.tree.getroot()).localname
@@ -158,7 +162,7 @@ class EnvioRecibido:
                 doc.estado, doc.glosa = 3, 'DTE No Recibido - Error en RUT Receptor'
             elif clave in vistos:
                 doc.estado, doc.glosa = 4, 'DTE No Recibido - DTE Repetido'
-            elif not self._timbre_valido(dte.getroot()):
+            elif validar_timbre and not self._timbre_valido(dte.getroot()):
                 doc.estado, doc.glosa = 99, 'DTE No Recibido - Timbre electronico no valido'
             vistos.add(clave)
         return self

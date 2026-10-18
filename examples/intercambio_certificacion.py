@@ -50,6 +50,8 @@ def main() -> None:
     parser.add_argument('--mail', help='Correo de contacto')
     parser.add_argument('--rechazar', default='',
                         help='DTE a rechazar comercialmente, como TIPO:FOLIO separados por coma (ej. 33:12)')
+    parser.add_argument('--sin-validar-timbre', action='store_true',
+                        help='No verificar el timbre (el set de intercambio del SII trae timbres que no verifican)')
     parser.add_argument('--salida', type=Path, default=ROOT / 'output' / 'certificacion' / 'intercambio')
     args = parser.parse_args()
 
@@ -61,7 +63,8 @@ def main() -> None:
     recinto = args.recinto or f'{emisor["DirOrigen"]}, {emisor["CmnaOrigen"]}'
     rechazar = {tuple(int(v) for v in item.split(':')) for item in args.rechazar.split(',') if item.strip()}
 
-    envio = EnvioRecibido(args.envio.expanduser().read_bytes(), nombre=args.envio.name).validar(rut)
+    envio = EnvioRecibido(args.envio.expanduser().read_bytes(), nombre=args.envio.name).validar(
+        rut, validar_timbre=not args.sin_validar_timbre)
     print(f'Envío {envio.nombre} (ID {envio.id}) de {envio.rut_emisor} para {envio.rut_receptor}')
     print(f'  Estado recepción: {envio.estado} - {envio.glosa}')
     for error in envio.errores[:5]:
@@ -85,10 +88,15 @@ def main() -> None:
                 recibos.agregar(doc.resumen(), recinto=recinto, certificate=certificate)
             archivos['recibo_mercaderias'] = (recibos.generar(certificate), 'EnvioRecibos_v10.xsd')
 
-        # 3. Aprobación comercial de cada DTE recibido.
+    if envio.estado == 0:
+        # 3. Aprobación comercial de cada DTE del envío: los que no se recibieron
+        # conforme (p. ej. dirigidos a otro RUT) se informan rechazados.
         resultado = RespuestaEnvio(rut, envio.rut_emisor, id_respuesta=args.cod_envio, **contacto)
-        for doc in recibidos:
-            if (doc.tipo, doc.folio) in rechazar:
+        for doc in envio.documentos:
+            if doc.estado != 0:
+                resultado.agregar_resultado_dte(doc.resumen(), args.cod_envio, estado=2,
+                                                glosa='DTE Rechazado - ' + doc.glosa.replace('DTE No Recibido - ', ''), codigo_rechazo=-1)
+            elif (doc.tipo, doc.folio) in rechazar:
                 resultado.agregar_resultado_dte(doc.resumen(), args.cod_envio, estado=2, codigo_rechazo=-1)
             else:
                 resultado.agregar_resultado_dte(doc.resumen(), args.cod_envio, estado=0)
