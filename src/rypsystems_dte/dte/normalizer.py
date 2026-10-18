@@ -710,12 +710,23 @@ class DocumentNormalizer:
                     d['QtyItem'] = 1
                 if php_empty(d['MontoItem']):
                     monto = utils_round(float(num(d['QtyItem'])) * float(num(d['PrcItem'])), moneda)
+                    # En pesos: igual que PHP (descuento y recargo redondeados).
+                    # En moneda extranjera el esquema exige DescuentoMonto y
+                    # RecargoMonto enteros, pero el monto de la línea admite
+                    # decimales: se calcula con el porcentaje exacto.
+                    exacto = bool(moneda) and moneda != 'PESO CL'
                     if php_bool(d['DescuentoPct']):
-                        d['DescuentoMonto'] = php_round(monto * float(num(d['DescuentoPct'])) / 100)
-                    monto -= num(d['DescuentoMonto'])
+                        descuento = monto * float(num(d['DescuentoPct'])) / 100
+                        d['DescuentoMonto'] = php_round(descuento)
+                        monto -= descuento if exacto else num(d['DescuentoMonto'])
+                    else:
+                        monto -= num(d['DescuentoMonto'])
                     if php_bool(d['RecargoPct']):
-                        d['RecargoMonto'] = php_round(monto * float(num(d['RecargoPct'])) / 100)
-                    monto += num(d['RecargoMonto'])
+                        recargo = monto * float(num(d['RecargoPct'])) / 100
+                        d['RecargoMonto'] = php_round(recargo)
+                        monto += recargo if exacto else num(d['RecargoMonto'])
+                    else:
+                        monto += num(d['RecargoMonto'])
                     d['MontoItem'] = utils_round(monto, moneda)
             elif php_empty(d['MontoItem']):
                 d['MontoItem'] = 0
