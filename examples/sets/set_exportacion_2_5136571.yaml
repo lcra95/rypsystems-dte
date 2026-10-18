@@ -6,6 +6,9 @@
 #   KN: unidad 6 | PAR: unidad 17 | PLANCHAS: bulto 89 | ITALIA: país 504
 #   RESOLUCION SNA: TpoDocRef 812 | DUS: 807 | AWB: 809
 # IndServicio: 3 servicios de exportación, 4 hotelería.
+# El SII exige la sección OtraMoneda con los montos en pesos chilenos
+# (HED-3-834) y las marcas de los bultos (HED-2-804). Tipos de cambio
+# referenciales para certificación (en producción: tipo de cambio del día).
 numero_atencion: 5136571
 
 receptor_italia: &receptor
@@ -30,6 +33,7 @@ casos:
           CodPaisRecep: 504
           CodPaisDestin: 504
       Totales: {TpoMoneda: FRANCO SZ}
+      OtraMoneda: {TpoMoneda: PESO CL, TpoCambio: 1100}
     # "%10 RECARGO EN LA LINEA DE ITEM POR COMISIONES EN EL EXTERIOR"
     detalle:
       - {NmbItem: ASESORIAS Y PROYECTOS PROFESIONALES, QtyItem: 1, PrcItem: 56, RecargoPct: 10}
@@ -53,12 +57,13 @@ casos:
           CodUnidPesoBruto: 17
           CodUnidPesoNeto: 17
           TotBultos: 66
-          TipoBultos: [{CodTpoBultos: 89, CantBultos: 66}]
+          TipoBultos: [{CodTpoBultos: 89, CantBultos: 66, Marcas: RYP-FRUTA-1/66}]
           MntFlete: 1898.21
           MntSeguro: 1067.68
           CodPaisRecep: 504
           CodPaisDestin: 504
       Totales: {TpoMoneda: FRANCO SZ}
+      OtraMoneda: {TpoMoneda: PESO CL, TpoCambio: 1100}
     # "DESCUENTO LINEA # 1: 5%"
     detalle:
       - {NmbItem: CAJAS CIRUELAS TIERNIZADAS SIN CAROZO CALIBRE 60/70, QtyItem: 662, UnmdItem: KN, PrcItem: 156, DescuentoPct: 5}
@@ -84,5 +89,6 @@ casos:
         GiroRecep: Particular
         DirRecep: Via del Corso 10, Roma
       Totales: {TpoMoneda: DOLAR USA}
+      OtraMoneda: {TpoMoneda: PESO CL, TpoCambio: 950}
     detalle:
       - {NmbItem: ALOJAMIENTO HABITACIONES, QtyItem: 1, PrcItem: 169}

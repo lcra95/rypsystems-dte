@@ -6,6 +6,11 @@
 #   SAN ANTONIO: puerto 906 | BARCELONA: puerto 563
 #   PAR: unidad 17 | LT: unidad 9 | ROLLOS: bulto 13 | ESPANA: país 517
 #   MIC (Manifiesto internacional): TpoDocRef 810
+# El SII exige la sección OtraMoneda con los montos en pesos chilenos
+# (HED-3-834) y las marcas de los bultos (HED-2-804). Tipos de cambio
+# referenciales para certificación (en producción: tipo de cambio del día).
+# Con forma de pago SIN PAGO (21) el normalizador deja en 0 el total en pesos,
+# igual que LibreDTE.
 # Flete y seguro van en los campos del encabezado y además como dos recargos
 # globales (instrucción (**) del set). Los documentos de exportación deben
 # enviarse en un envío separado del set (2).
@@ -31,12 +36,13 @@ encabezado_exportacion: &encabezado
       CodUnidPesoBruto: 9
       CodUnidPesoNeto: 9
       TotBultos: 89
-      TipoBultos: [{CodTpoBultos: 13, CantBultos: 89}]
+      TipoBultos: [{CodTpoBultos: 13, CantBultos: 89, Marcas: RYP-ALUMINIO-1/89}]
       MntFlete: 3714.77
       MntSeguro: 2922.95
       CodPaisRecep: 517
       CodPaisDestin: 517
   Totales: {TpoMoneda: LIBRA EST}
+  OtraMoneda: {TpoMoneda: PESO CL, TpoCambio: 1250}
 
 casos:
   - caso: 5136570-1
