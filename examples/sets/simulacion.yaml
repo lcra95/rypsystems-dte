@@ -27,6 +27,11 @@ exportacion_servicios: &exportacion
   Totales: {TpoMoneda: DOLAR USA}
   OtraMoneda: {TpoMoneda: PESO CL, TpoCambio: 950}
 
+# Exportación de servicios: el SII exige referenciar la resolución del SNA que
+# califica el servicio como exportable (REF-2-826), también en las notas.
+resolucion_sna: &sna
+  - {TpoDocRef: 812, FolioRef: 1, RazonRef: RESOLUCION SNA}
+
 casos:
   # --- Facturas afectas (33) ---
   - caso: SIM-01
@@ -148,6 +153,7 @@ casos:
     encabezado: *exportacion
     detalle:
       - {NmbItem: Desarrollo de software a medida, DscItem: Sprint 1 y 2, QtyItem: 80, UnmdItem: HRS, PrcItem: 45}
+    referencias_extra: *sna
 
   - caso: SIM-17
     tipo: 110
@@ -155,8 +161,10 @@ casos:
     detalle:
       - {NmbItem: Consultoría en inteligencia artificial, QtyItem: 10, UnmdItem: HRS, PrcItem: 70}
       - {NmbItem: Mantención mensual de modelos, QtyItem: 1, UnmdItem: UN, PrcItem: 500}
+    referencias_extra: *sna
 
   # --- Notas de crédito (61) ---
+
   - caso: SIM-18
     tipo: 61
     referencia: {caso: SIM-04, CodRef: 3, RazonRef: Devolución de una licencia no utilizada}
@@ -207,6 +215,7 @@ casos:
     referencia: {caso: SIM-16, CodRef: 3, RazonRef: Descuento por horas no utilizadas}
     detalle:
       - {NmbItem: Desarrollo de software a medida, QtyItem: 8, UnmdItem: HRS, PrcItem: 45}
+    referencias_extra: *sna
 
   - caso: SIM-26
     tipo: 111
@@ -214,3 +223,4 @@ casos:
     referencia: {caso: SIM-17, CodRef: 3, RazonRef: Horas adicionales de consultoría}
     detalle:
       - {NmbItem: Consultoría en inteligencia artificial, QtyItem: 4, UnmdItem: HRS, PrcItem: 70}
+    referencias_extra: *sna

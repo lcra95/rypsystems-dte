@@ -167,7 +167,8 @@ def main() -> None:
             receptor = dict(receptores[siguiente_receptor % len(receptores)])
             siguiente_receptor += 1
         if ref:
-            referencias.append({
+            # El documento referenciado va antes de las otras referencias (SNA, DUS...).
+            referencias.insert(1 if referencia_set and not boletas else 0, {
                 'TpoDocRef': original['tipo'], 'FolioRef': original['folio'], 'FchRef': original['fecha'],
                 'CodRef': ref['CodRef'], 'RazonRef': ref['RazonRef'],
             })
