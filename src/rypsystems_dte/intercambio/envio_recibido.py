@@ -14,9 +14,10 @@ from ..firma.ted import TEDValidator
 from ..firma.xml_signer import SignatureError, XmlSigner
 from ..xml.canonical import parse, to_bytes
 from ..xml.schema import schema_errors
+from ..errors import RypDteError
 
 
-class IntercambioError(Exception):
+class IntercambioError(RypDteError):
     """Error en el intercambio de información."""
 
 

@@ -7,8 +7,10 @@ con los servicios web del SII chileno.
 
 from typing import Optional, Dict, Any
 
+from ...errors import RypDteError
 
-class SiiWebServiceException(Exception):
+
+class SiiWebServiceException(RypDteError):
     """Excepción base para errores de servicios web del SII."""
 
     def __init__(

@@ -25,11 +25,12 @@ from lxml import etree
 
 from ..sii.base import SiiAmbiente
 from ..xml.canonical import c14n_encoded_flattened, parse
+from ..errors import RypDteError
 
 _RESOURCES = Path(__file__).resolve().parent.parent / 'resources' / 'certificates'
 
 
-class CafError(Exception):
+class CafError(RypDteError):
     """Error al cargar, validar o usar un CAF."""
 
 

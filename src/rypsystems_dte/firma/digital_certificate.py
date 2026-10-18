@@ -18,8 +18,10 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID, ExtensionOID
 
+from ..errors import RypDteError
 
-class CertificateError(Exception):
+
+class CertificateError(RypDteError):
     """Error al cargar o usar un certificado digital."""
 
 

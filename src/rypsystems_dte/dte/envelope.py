@@ -17,6 +17,7 @@ from ..firma.digital_certificate import DigitalCertificate
 from ..firma.ted import expand_empty_dd_tags
 from ..firma.xml_signer import XmlSigner
 from ..xml.encoder import XmlEncoder, save_xml
+from ..errors import RypDteError
 
 SII_DTE_NAMESPACE = 'http://www.sii.cl/SiiDte'
 XSI_NAMESPACE = 'http://www.w3.org/2001/XMLSchema-instance'
@@ -31,7 +32,7 @@ _BOLETAS = (39, 41)
 _DECLARATION_RE = re.compile(rb'^\s*<\?xml[^>]*\?>\s*')
 
 
-class EnvelopeError(Exception):
+class EnvelopeError(RypDteError):
     """Error al armar o firmar un sobre de envío."""
 
 
