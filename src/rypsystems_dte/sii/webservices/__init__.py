@@ -12,6 +12,7 @@ Implementación completa de servicios web del SII chileno incluyendo:
 from .sii_endpoints import SiiEndpoints, SiiEnvironment
 from .soap_service import SoapService
 from .boleta_service import BoletaService
+from .registro_reclamo_service import RegistroReclamoService
 from .rest_service import RestService
 from .document_sender import DocumentSender, SendingProtocol, SendingResult
 from .status_checker import StatusChecker, DocumentStatus, StatusQueryResult
@@ -30,6 +31,7 @@ __all__ = [
     'SiiEnvironment',
     'SoapService',
     'BoletaService',
+    'RegistroReclamoService',
     'RestService',
     'DocumentSender',
     'SendingProtocol',
