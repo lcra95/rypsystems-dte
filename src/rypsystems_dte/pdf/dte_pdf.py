@@ -58,6 +58,9 @@ TRASLADOS = {
     5: 'Traslado interno', 6: 'Otros traslados no venta', 7: 'Guía de devolución',
     8: 'Traslado para exportación', 9: 'Venta para exportación',
 }
+TIPOS_DESPACHO = {
+    1: 'Por cuenta del receptor', 2: 'Emisor a instalaciones del cliente', 3: 'Emisor a otras instalaciones',
+}
 FORMAS_PAGO = {1: 'Contado', 2: 'Crédito', 3: 'Sin costo (entrega gratuita)'}
 # Documentos sin acuse de recibo ni copia cedible (boletas, notas y exportación).
 BOLETAS = (39, 41)
@@ -156,6 +159,59 @@ def pdf417_image(data: bytes, columns: int = 12):
                 raise
             columns += 1
     return pdf417gen.render_image(codes, scale=3, ratio=3, padding=0)
+
+
+def pdf417_modules(data: bytes, columns: int = 12) -> List[List[bool]]:
+    """Matriz de módulos del PDF417 (True = barra), una fila por fila del código."""
+    imagen = pdf417_image_raw(data, columns)
+    ancho, alto = imagen.size
+    pixeles = imagen.convert('1').load()
+    return [[pixeles[x, y] == 0 for x in range(ancho)] for y in range(alto)]
+
+
+def pdf417_image_raw(data: bytes, columns: int = 12):
+    """PDF417 con un pixel por módulo (sin escalar)."""
+    while True:
+        try:
+            codes = pdf417gen.encode(data, columns=columns, security_level=5)
+            break
+        except ValueError:
+            if columns >= 30:
+                raise
+            columns += 1
+    return pdf417gen.render_image(codes, scale=1, ratio=1, padding=0)
+
+
+def draw_pdf417(c, data: bytes, x: float, y: float, w: float, max_h: float = 40 * mm,
+                columns: int = 12, ratio: int = 3) -> float:
+    """
+    Dibuja el PDF417 como vector (un rectángulo por barra), nítido a cualquier
+    resolución de impresión. Agrega columnas hasta que el alto no supere max_h.
+
+    Returns:
+        Alto dibujado
+    """
+    modulos = pdf417_modules(data, columns)
+    while len(modulos) * ratio / len(modulos[0]) * w > max_h and columns < 30:
+        columns += 2
+        modulos = pdf417_modules(data, columns)
+    modulo = w / len(modulos[0])
+    alto_fila = modulo * ratio
+    alto = alto_fila * len(modulos)
+    c.saveState()
+    c.setFillColor(colors.black)
+    for i, fila in enumerate(modulos):
+        fila_y = y + alto - (i + 1) * alto_fila
+        inicio = None
+        for j, barra in enumerate(fila + [False]):
+            if barra and inicio is None:
+                inicio = j
+            elif not barra and inicio is not None:
+                # Un poco más ancho para no dejar líneas blancas entre filas al rasterizar.
+                c.rect(x + inicio * modulo, fila_y, (j - inicio) * modulo, alto_fila + 0.05, stroke=0, fill=1)
+                inicio = None
+    c.restoreState()
+    return alto
 
 
 class DtePdf:
@@ -341,14 +397,14 @@ class DtePdf:
             ('Señor(es)', receptor.get('RznSocRecep', ''), 'Fecha emisión', fecha(id_doc.get('FchEmis', ''))),
             ('R.U.T.', rut(receptor.get('RUTRecep', '')), 'Vencimiento' if id_doc.get('FchVenc') else '',
              fecha(id_doc.get('FchVenc', ''))),
-            ('Giro', receptor.get('GiroRecep', ''), 'Forma de pago',
+            ('Giro', receptor.get('GiroRecep', ''), 'Forma de pago' if id_doc.get('FmaPago') else '',
              FORMAS_PAGO.get(int(id_doc['FmaPago']), id_doc['FmaPago']) if id_doc.get('FmaPago') else ''),
             ('Dirección', ', '.join(v for v in (receptor.get('DirRecep'), receptor.get('CmnaRecep'),
                                                 receptor.get('CiudadRecep')) if v), '', ''),
         ]
         if isinstance(extranjero, dict) and extranjero.get('Nacionalidad'):
             filas.append(('País', self._aduana('aduana_paises', extranjero.get('Nacionalidad')),
-                          'Id. extranjero', extranjero.get('NumId', '')))
+                          'Id. extranjero' if extranjero.get('NumId') else '', extranjero.get('NumId', '')))
         if receptor.get('Contacto') or receptor.get('CorreoRecep'):
             filas.append(('Contacto', receptor.get('Contacto', ''), 'Correo', receptor.get('CorreoRecep', '')))
         return self._tabla_datos(c, filas, x, y, w, (22 * mm, w - 22 * mm - 58 * mm, 28 * mm, 30 * mm), caja=True)
@@ -369,7 +425,10 @@ class DtePdf:
     def _traslado(self, c, id_doc, transporte, x, y, w, exportacion) -> float:
         filas = []
         if id_doc.get('IndTraslado'):
-            filas.append(('Traslado', TRASLADOS.get(int(id_doc['IndTraslado']), id_doc['IndTraslado']), '', ''))
+            despacho = TIPOS_DESPACHO.get(int(id_doc['TipoDespacho']), id_doc['TipoDespacho']) \
+                if id_doc.get('TipoDespacho') else ''
+            filas.append(('Traslado', TRASLADOS.get(int(id_doc['IndTraslado']), id_doc['IndTraslado']),
+                          'Despacho' if despacho else '', despacho))
         if isinstance(transporte, dict):
             destino = ', '.join(v for v in (transporte.get('DirDest'), transporte.get('CmnaDest'),
                                             transporte.get('CiudadDest')) if v)
@@ -381,8 +440,8 @@ class DtePdf:
                               numero(aduana.get('TotClauVenta'), 2) if aduana.get('TotClauVenta') else ''))
                 filas.append(('Vía transporte', self._aduana('aduana_transportes', aduana.get('CodViaTransp')),
                               'Modalidad venta', self._aduana('aduana_modalidades_venta', aduana.get('CodModVenta'))))
-                filas.append(('Puerto embarque', self._aduana('aduana_puertos', aduana.get('CodPtoEmbarque')),
-                              'Puerto desembarque', self._aduana('aduana_puertos', aduana.get('CodPtoDesemb'))))
+                filas.append(('Pto. embarque', self._aduana('aduana_puertos', aduana.get('CodPtoEmbarque')),
+                              'Pto. desembarque', self._aduana('aduana_puertos', aduana.get('CodPtoDesemb'))))
                 filas.append(('País receptor', self._aduana('aduana_paises', aduana.get('CodPaisRecep')),
                               'País destino', self._aduana('aduana_paises', aduana.get('CodPaisDestin'))))
                 if aduana.get('MntFlete') or aduana.get('MntSeguro'):
@@ -392,7 +451,7 @@ class DtePdf:
                                   'Marcas', bulto.get('Marcas', '')))
         if not filas:
             return y
-        return self._tabla_datos(c, filas, x, y, w, (30 * mm, w - 30 * mm - 72 * mm, 34 * mm, 38 * mm))
+        return self._tabla_datos(c, filas, x, y, w, (30 * mm, w - 30 * mm - 88 * mm, 34 * mm, 54 * mm))
 
     def _referencias(self, c, referencias, x, y, w) -> float:
         refs = _as_list(referencias)
@@ -503,17 +562,8 @@ class DtePdf:
     def _timbre(self, c, timbre, x, y, w):
         if not timbre:
             return
-        columnas = 12
-        imagen = pdf417_image(timbre, columnas)
-        proporcion = imagen.height / imagen.width
         # El SII exige entre 2 y 4 cm de alto y entre 5 y 9 cm de ancho.
-        while w * proporcion > 40 * mm and columnas < 30:
-            columnas += 2
-            imagen = pdf417_image(timbre, columnas)
-            proporcion = imagen.height / imagen.width
-        alto = w * proporcion
-        y_barra = y + 14 * mm
-        c.drawImage(ImageReader(imagen), x, y_barra, w, alto)
+        draw_pdf417(c, timbre, x, y + 14 * mm, w, max_h=40 * mm)
         c.setFont('Helvetica-Bold', 8)
         centro = x + w / 2
         c.drawCentredString(centro, y + 10 * mm, 'Timbre Electrónico SII')

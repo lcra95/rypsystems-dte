@@ -24,7 +24,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
-from reportlab.platypus import Image, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import Flowable, Image, Paragraph, Spacer, Table, TableStyle
 
 from .dte_pdf import (
     ACUSE_RECIBO,
@@ -37,9 +37,9 @@ from .dte_pdf import (
     _as_list,
     _local,
     _to_dict,
+    draw_pdf417,
     fecha,
     numero,
-    pdf417_image,
     rut,
     ted_pdf417,
 )
@@ -294,13 +294,21 @@ class DtePdfTermico(DtePdf):
         ]))
         return tabla
 
-    def _imagen_timbre(self, timbre: bytes) -> Image:
-        columnas = 10
-        imagen = pdf417_image(timbre, columnas)
-        while ANCHO_TIMBRE * imagen.height / imagen.width > 40 * mm and columnas < 30:
-            columnas += 2
-            imagen = pdf417_image(timbre, columnas)
-        png = io.BytesIO()
-        imagen.save(png, format='PNG')
-        png.seek(0)
-        return Image(png, width=ANCHO_TIMBRE, height=ANCHO_TIMBRE * imagen.height / imagen.width)
+    def _imagen_timbre(self, timbre: bytes) -> Flowable:
+        return _Pdf417(timbre, ANCHO_TIMBRE)
+
+
+class _Pdf417(Flowable):
+    """Timbre PDF417 vectorial (ver draw_pdf417)."""
+
+    def __init__(self, data: bytes, width: float, max_height: float = 40 * mm):
+        super().__init__()
+        self.data, self.width, self.max_height = data, width, max_height
+        # Alto real: se calcula dibujando en un lienzo descartable.
+        self.height = draw_pdf417(canvas.Canvas(io.BytesIO()), data, 0, 0, width, max_height)
+
+    def wrap(self, *args):
+        return self.width, self.height
+
+    def draw(self):
+        draw_pdf417(self.canv, self.data, 0, 0, self.width, self.max_height)

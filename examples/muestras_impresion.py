@@ -25,13 +25,14 @@ from rypsystems_dte.pdf import DtePdf, DtePdfTermico  # noqa: E402
 
 
 def ultimos_envios(directorio: Path):
-    """Último envío con Track ID de cada set: {numero_atencion: ruta_envio}."""
+    """Último envío con Track ID de cada set y de la simulación: {nombre: (ruta_envio, track_id)}."""
     envios = {}
-    for trackid in sorted(directorio.glob('set_*_trackid.txt')):
-        numero = re.match(r'set_([^_]+)_', trackid.name).group(1)
+    archivos = sorted(directorio.glob('set_*_trackid.txt')) + sorted(directorio.glob('simulacion_*_trackid.txt'))
+    for trackid in archivos:
+        nombre = re.match(r'(set_[^_]+|simulacion)_', trackid.name).group(1)
         envio = trackid.with_name(trackid.name.replace('_trackid.txt', '_envio.xml'))
         if envio.exists():
-            envios[numero] = envio
+            envios[nombre] = (envio, trackid.read_text().strip())
     return envios
 
 
@@ -56,17 +57,20 @@ def main() -> None:
         logo=str(args.logo) if args.logo else None,
     )
     args.salida.mkdir(parents=True, exist_ok=True)
-    for numero, envio in ultimos_envios(args.envios).items():
-        root = etree.fromstring(envio.read_bytes())
-        dtes = root.xpath('//*[local-name()="SetDTE"]/*[local-name()="DTE"]')
-        print(f'Set {numero} ({envio.name}): {len(dtes)} documentos')
+    sufijo = '_80mm' if args.formato == '80mm' else ''
+    for nombre, (envio, track_id) in ultimos_envios(args.envios).items():
+        xml = envio.read_bytes()
+        dtes = etree.fromstring(xml).xpath('//*[local-name()="SetDTE"]/*[local-name()="DTE"]')
+        # Un PDF con todos los documentos del envío (con sus copias cedibles)...
+        combinado = args.salida / f'{nombre}_envio_{track_id}{sufijo}.pdf'
+        combinado.write_bytes(pdf.render_envio(xml))
+        print(f'{nombre} (Track ID {track_id}): {len(dtes)} documentos -> {combinado.name}')
+        # ... y uno por documento.
         for dte in dtes:
             tipo = dte.xpath('string(.//*[local-name()="IdDoc"]/*[local-name()="TipoDTE"])')
             folio = dte.xpath('string(.//*[local-name()="IdDoc"]/*[local-name()="Folio"])')
-            sufijo = '_80mm' if args.formato == '80mm' else ''
-            ruta = args.salida / f'set_{numero}_T{int(tipo):03d}F{int(folio):09d}{sufijo}.pdf'
+            ruta = args.salida / f'{nombre}_T{int(tipo):03d}F{int(folio):09d}{sufijo}.pdf'
             ruta.write_bytes(pdf.render(etree.tostring(dte)))
-            print(f'  {ruta}')
 
 
 if __name__ == '__main__':
