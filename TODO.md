@@ -10,12 +10,12 @@ Estado al 2026-10-18. El plan completo está en `~/.claude/plans/jaunty-growing-
 - **Otros:** PDF carta y térmico 80 mm con el timbre vectorial; libros de compra, venta y guías.
 - **Interfaz pública** (`emision.py`): emitir, armar envío, anular y `ClienteSii`.
 - **Certificación** (`certificacion/`): *parser* del set de pruebas del SII y del de boletas, emisión de sets, libros y muestras impresas. Reproduce exactamente lo que el SII aceptó a RYP.
-- **Certificación de RYP AI SYSTEMS:** set de pruebas, simulación e intercambio aprobados; muestras impresas en revisión del SII.
+- **Certificación de RYP AI SYSTEMS:** certificación completa (2026-10-19): set de pruebas, simulación, intercambio y muestras impresas aprobados; autorizada como emisor (Res. Ex. SII N° 80 de 2014).
 
 ## Core (Fase 0)
 - [x] Tipo de cambio oficial: `rypsystems_dte.tipo_cambio` (BDE del Banco Central; series de monedas distintas del dólar por configurar con `buscar_series`).
 - [x] Resumen de Ventas Diarias: no se implementa. La Res. Ex. SII N° 53 de 2022 eliminó su envío desde el 1 de agosto de 2022 (solo rige para períodos hasta julio de 2022); el registro de ventas se alimenta de las boletas enviadas al SII y las correcciones se hacen reenviando boletas.
-- [x] Hosts de producción (2026-10-18): semilla y token en palena (DTEWS), api.sii.cl (boletas) y ws1 (registro de reclamos); la consulta de reclamos responde. QueryEstUp responde "106 Usuario no tiene permiso en empresa" mientras RYP no esté autorizada en producción: volver a probar tras la resolución del SII.
+- [x] Hosts de producción (2026-10-18): semilla y token en palena (DTEWS), api.sii.cl (boletas) y ws1 (registro de reclamos); la consulta de reclamos responde. QueryEstUp respondía "106 Usuario no tiene permiso en empresa" antes de la autorización; desde el 2026-10-19 responde "-11" (track inexistente), es decir, RYP ya tiene permiso en producción.
 - [ ] `libros_certificacion.py`, `libro_guias_certificacion.py` y `muestras_impresion.py` siguen con su propia lógica; podrían usar `rypsystems_dte.certificacion`.
 - [ ] Revisar `dte/document.py`, `dte/factory.py`, `xml/document.py` y `pdf417/`: heredados de la traducción y fuera del flujo de `emision.py`.
 
