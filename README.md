@@ -39,7 +39,7 @@ sii = ClienteSii(certificado, SiiEnvironment.CERTIFICACION)
 track_id = sii.enviar(envio, doc.emisor)  # EnvioDTE por DTEUpload; boletas por la API REST
 estado = sii.consultar_envio(track_id, doc.emisor, boletas=doc.es_boleta)
 
-pdf = DtePdf().render(doc.xml)
+pdf = DtePdf({'fecha': '2026-10-17', 'numero': 0}).render(doc.xml)   # resolución del emisor
 nc = anular(doc, folio=20, caf=caf_61, certificado=certificado)   # NC 61 con CodRef 1
 ```
 
