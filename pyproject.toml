@@ -25,6 +25,10 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 
+[project.urls]
+Repository = "https://github.com/lcra95/rypsystems-dte"
+LibreDTE = "https://www.libredte.cl"
+
 [project.optional-dependencies]
 test = ["pytest>=7.0.0", "pytest-timeout>=2.1.0", "zxing-cpp>=2.2.0", "pyyaml>=6.0"]
 # Scripts de certificación de examples/

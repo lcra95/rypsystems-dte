@@ -9,7 +9,7 @@ Es una traducción a Python de [LibreDTE](https://www.libredte.cl) y se distribu
 ## Instalación
 
 ```bash
-pip install git+ssh://git@github.com/<org>/rypsystems-dte.git@v0.1.0
+pip install "rypsystems-dte @ https://github.com/lcra95/rypsystems-dte/archive/refs/tags/v0.3.0.tar.gz"
 # desarrollo
 pip install -e ".[test]"
 ```
